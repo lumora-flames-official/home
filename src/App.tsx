@@ -50,6 +50,28 @@ const ContactChannels = lazy(() =>
   }))
 );
 
+/*
+ * The local-only catalog CMS, and the one route that is conditional.
+ *
+ * `import.meta.env.DEV` is statically replaced by Vite, so in a production build
+ * this is `false ? … : null` — the branch is dead code and the dynamic import it
+ * contains is unreachable, which means the panel is eliminated from the bundle
+ * rather than merely unrouted. That matters because the panel is a write tool: its
+ * API only exists while `vite serve` is running (see scripts/catalogDevApi.ts), so
+ * a shipped copy would be a form that cannot work, describing endpoints that
+ * suggest a backend the site does not have.
+ *
+ * The panel *also* checks `window.location.hostname`. That second check cannot
+ * protect anything by itself — shipped code can be read and skipped — it only
+ * turns an honest misconfiguration into a clear message. This gate is the one
+ * doing the work.
+ */
+const UpdateListPanel = import.meta.env.DEV
+  ? lazy(() =>
+      import('./features/admin/UpdateListPanel').then((m) => ({ default: m.UpdateListPanel }))
+    )
+  : null;
+
 /** Standard page shell: max width, gutters, and clearance for the fixed navbar. */
 const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <main className="min-h-screen">
@@ -178,6 +200,21 @@ export default function App() {
                     />
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="/contact" element={<ContactPage />} />
+                    {/*
+                      Dev-only, and absent rather than guarded in production — so on
+                      a deployed build this falls through to the * redirect below,
+                      which is exactly the 404 behaviour the route should have.
+                    */}
+                    {UpdateListPanel && (
+                      <Route
+                        path="/update-list"
+                        element={
+                          <PageShell>
+                            <UpdateListPanel />
+                          </PageShell>
+                        }
+                      />
+                    )}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Suspense>

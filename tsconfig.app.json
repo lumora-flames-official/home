@@ -11,6 +11,10 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    /* `src/data/catalog.json` is written by the local CMS and imported as the
+       catalog dataset, so the compiler has to be able to read a .json module.
+       Without this, `tsc -b` fails before Vite ever sees the file. */
+    "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,

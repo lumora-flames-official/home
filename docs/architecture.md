@@ -46,10 +46,24 @@ How a visitor moves through the site, and what each step hands to the next. Arro
 │  pinned walk through one collection's varieties,
 │  driving the interactive candle canvas
 │
+│  then, once the pin releases, the catalog:
+│  one horizontal product rail per variety, absent
+│  for any variety with nothing listed yet
+│
 ├── "back" ──────────────────────────────→ /collections
-└── "commission this" ───────────────────→ /contact
-                                            hands over router state:
-                                            { categoryTitle }
+├── "commission this" ───────────────────→ /contact
+│                                           hands over router state:
+│                                           { categoryTitle }
+└── product "commission" ────────────────⇥ wa.me, SKU + price pre-typed
+                                            (leaves the site; bypasses /contact
+                                             because the brief is already known)
+
+
+/update-list  ·  catalog CMS  ·  DEV ONLY, NOT IN THE BUNDLE
+│  writes src/data/catalog.json and src/data/catalog-images/
+│  through /api/catalog on the dev server; publishing is a commit
+│
+└── (production has no such route — falls through to * → /)
 
 
 /about  ·  brand story
@@ -112,7 +126,8 @@ There is no backend, no API layer, and no fetching anywhere in the app. Every sc
 - **The category dataset is canonical.** Ids are URL slugs *and* are referenced by promotional slides. Renaming one breaks live links and dead-ends a CTA at a redirect. Append; don't rename, don't restructure the hierarchy.
 - **Cross-cutting groupings are not categories.** Things like *gifting* map **onto** existing category ids from the promotions module. Adding one to the category dataset makes it a navigable collection, which it isn't.
 - **Every id reference is validated on import**, in development only, and throws. This exists because an unknown slug redirects rather than erroring — so a broken CTA still navigates and still *looks* like it worked. A new dataset must be registered with that assertion or its ids go unchecked.
-- **Images are imported, never path strings.** Vite hashes asset filenames at build time; a `'src/data/images/x.png'` string resolves in dev and silently 404s in production. Register the import, reference the registry.
+- **Images are imported, never path strings.** Vite hashes asset filenames at build time; a `'src/data/images/x.png'` string resolves in dev and silently 404s in production. Register the import, reference the registry. Catalog photography is the sole exception to *how*, never to *whether*: nobody hand-writes an import for a file the CMS just created, so `catalogImages.ts` enumerates the directory with `import.meta.glob(…, { query: '?url' })` — same build-time hashing, same base-path rewriting, same build-verified existence. The tempting shortcut, `public/catalog/` plus a stored `/catalog/x.jpg`, is worse than a plain mistake: `base` is `/` locally and `/lumora_flames/` on the deploy, so it works perfectly in dev and 404s only once published.
+- **Product data is machine-written, and that raises the bar on validation.** `catalog.json` is produced by the dev middleware, not reviewed in a hand-authored diff, so `assertCatalogResolves()` checks more than ids: it also catches a metadata entry whose image is missing from disk, and a duplicate SKU. Every one of those failures is invisible at runtime — an unknown key means the rail is simply absent, which is indistinguishable from a variety with nothing listed.
 - **Contact handles, numbers and studio facts live in exactly one module.** They surface in the footer, the about page and the contact page — a number that is right in one and stale in another is worse than no number. Unfilled values use a `PLACEHOLDER` sentinel and are *hidden from the page* rather than rendered, with a dev-only console warning telling you they're missing. A customer must never see the word "TBC".
 
 ## The publishing constraint
@@ -136,7 +151,14 @@ That means a typo fix needs a developer, a toolchain and a deploy. It should nee
 - **The id-integrity assertion has to survive.** It currently runs at import in dev and throws. Once content is remote, that check has to move to write-time in the admin panel — otherwise the one thing protecting live links stops protecting them.
 - **Prefer build-time content over runtime fetching** if the option exists. A static build with content injected at build time keeps the site fast and keeps the 404-proof asset pipeline; only reach for runtime fetching if edits genuinely must appear without a rebuild.
 
-Until that work happens: **do not add a fetch, an API client, or a lead store.** The site is a static build and that is currently deliberate.
+**What the catalog CMS already settles, and what it doesn't.** The product catalog (`/update-list` → `scripts/catalogDevApi.ts` → `catalog.json`) is a working instance of the "prefer build-time content" bullet above, and it is worth reading before designing the general admin panel:
+
+- **It moves the edit, not the deploy.** Adding a candle no longer touches a `.tsx` file, but publishing is still `commit → push → CI builds`. That is the trade that keeps every guarantee below intact.
+- **It solves the image problem by sidestepping storage entirely.** Uploads land in `src/`, so they stay build-time imports — hashed, cache-safe, 404-proof — with no hosting decision. This does not scale to a non-technical editor on another machine, but it does mean "admin-uploaded images need real URLs from storage" is not yet forced.
+- **It shows what runtime content will cost.** `catalog.json` is the one dataset TypeScript cannot fully vouch for; the cast in `catalog.ts` is honest about that, and `assertCatalogResolves()` is the runtime schema validation this document predicted would be needed. Note where it runs: at import, in dev, *before* a build can succeed. A remote content source has no such moment, which is why the same check would have to move to write-time.
+- **The id-integrity requirement held.** The middleware validates against the real `CANDLE_CATEGORIES` via `ssrLoadModule` rather than a copied id list, so there is still one definition of what a valid collection is.
+
+Until the broader work happens: **do not add a fetch, an API client, or a lead store to the shipped app.** The site is a static build and that is deliberate. `/api/catalog` is not a counter-example — it exists only under `vite serve`, and nothing in the production bundle can call it.
 
 ## Where a new file goes
 
@@ -247,6 +269,7 @@ Automated coverage stops at one file. `src/data/contact.test.ts` asserts the Wha
 4. With **reduced motion** enabled at the OS level.
 5. `npm run lint`, `npm run format:check`, `npm run test` and `npm run build` must all pass — both deploy workflows gate on all four, so one red check blocks the deploy entirely.
 6. If you touched a GSAP plugin import, **check the built chunk sizes** — a static import of a heavy plugin can quietly quadruple the landing chunk.
-7. **Resize the window; don't only load at one size.** A pinned section re-measures on resize, and if its length and its height are derived from different sources they can disagree — Safari reports a stale `window.innerHeight` for a beat after layout has reflowed, which left the hero short with a blank band under it while Chrome looked perfect. Derive both from the same box; see the `end` callback in `HeroChamber`.
+7. If you touched the **catalog or the CMS**: add a product through `/update-list`, confirm the rail appears on that collection page, then reprice and delete it — the delete removes a file from disk, so check `git status` afterwards. Then `npm run build && npm run preview` and confirm `/update-list` falls through to the home redirect and `grep -rl "update-list" dist/` finds nothing. A shipped panel is the failure that matters here.
+8. **Resize the window; don't only load at one size.** A pinned section re-measures on resize, and if its length and its height are derived from different sources they can disagree — Safari reports a stale `window.innerHeight` for a beat after layout has reflowed, which left the hero short with a blank band under it while Chrome looked perfect. Derive both from the same box; see the `end` callback in `HeroChamber`.
 
 Node v12 is the machine default and breaks every script with a bare `Unexpected token ?`. Use Node 24.

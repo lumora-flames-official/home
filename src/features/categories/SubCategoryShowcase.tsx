@@ -9,6 +9,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { EASE, DURATION } from '../../lib/animations';
+import { CollectionCatalog } from './CollectionCatalog';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -240,91 +241,106 @@ export const SubCategoryShowcase: React.FC<SubCategoryShowcaseProps> = ({
   // Reduced motion: no pinning, no scroll hijack — every variety stacked plainly.
   if (prefersReducedMotion) {
     return (
-      <div
-        className={cn(
-          'mx-auto space-y-20',
-          DESIGN_TOKENS.layout.maxWidth,
-          DESIGN_TOKENS.layout.paddingX,
-          DESIGN_TOKENS.layout.headerOffset,
-          'pb-24'
-        )}
-      >
-        {header}
-        {varieties.map((variety, index) => (
-          <section
-            key={variety.id}
-            className="grid items-center gap-10 border-t border-stone-200 pt-14 lg:grid-cols-2 dark:border-stone-800"
-          >
-            <div className="flex justify-center">
-              <InteractiveCandleCanvas
-                flameIntensity={1}
-                visual={variety.visual}
-                label={variety.name}
-              />
-            </div>
-            {renderNarrative(index, false)}
-          </section>
-        ))}
-      </div>
+      <>
+        <div
+          className={cn(
+            'mx-auto space-y-20',
+            DESIGN_TOKENS.layout.maxWidth,
+            DESIGN_TOKENS.layout.paddingX,
+            DESIGN_TOKENS.layout.headerOffset,
+            'pb-24'
+          )}
+        >
+          {header}
+          {varieties.map((variety, index) => (
+            <section
+              key={variety.id}
+              className="grid items-center gap-10 border-t border-stone-200 pt-14 lg:grid-cols-2 dark:border-stone-800"
+            >
+              <div className="flex justify-center">
+                <InteractiveCandleCanvas
+                  flameIntensity={1}
+                  visual={variety.visual}
+                  label={variety.name}
+                />
+              </div>
+              {renderNarrative(index, false)}
+            </section>
+          ))}
+        </div>
+
+        <CollectionCatalog category={category} />
+      </>
     );
   }
 
   return (
-    <div ref={stageRef} className="relative min-h-screen w-full overflow-hidden">
-      <div
-        className={cn(
-          'mx-auto flex min-h-screen flex-col justify-center',
-          DESIGN_TOKENS.layout.maxWidth,
-          DESIGN_TOKENS.layout.paddingX,
-          DESIGN_TOKENS.layout.headerOffset,
-          'pb-16'
-        )}
-      >
-        {header}
+    <>
+      <div ref={stageRef} className="relative min-h-screen w-full overflow-hidden">
+        <div
+          className={cn(
+            'mx-auto flex min-h-screen flex-col justify-center',
+            DESIGN_TOKENS.layout.maxWidth,
+            DESIGN_TOKENS.layout.paddingX,
+            DESIGN_TOKENS.layout.headerOffset,
+            'pb-16'
+          )}
+        >
+          {header}
 
-        <div className="mt-10 grid flex-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          {/* The candle: one object that reshapes itself per variety. */}
-          <div className="flex items-center justify-center">
-            <InteractiveCandleCanvas
-              flameIntensity={1}
-              visual={active.visual}
-              label={active.name}
-            />
+          <div className="mt-10 grid flex-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
+            {/* The candle: one object that reshapes itself per variety. */}
+            <div className="flex items-center justify-center">
+              <InteractiveCandleCanvas
+                flameIntensity={1}
+                visual={active.visual}
+                label={active.name}
+              />
+            </div>
+
+            {renderNarrative(activeIndex, true)}
           </div>
 
-          {renderNarrative(activeIndex, true)}
-        </div>
-
-        {/* Progress rail. Also a control — clicking jumps to that variety, so the
+          {/* Progress rail. Also a control — clicking jumps to that variety, so the
             content stays reachable without scrubbing the whole stage. */}
-        <nav aria-label="Varieties" className="mt-10 flex items-center gap-2.5">
-          {varieties.map((variety, index) => (
-            <button
-              key={variety.id}
-              type="button"
-              aria-label={variety.name}
-              aria-current={index === activeIndex}
-              onClick={() => {
-                activeIndexRef.current = index;
-                setActiveIndex(index);
-              }}
-              className="group flex h-11 items-center focus-visible:outline-none"
-            >
-              <span
-                className={cn(
-                  'h-1.5 rounded-full transition-all duration-500',
-                  index === activeIndex
-                    ? 'w-12 bg-amber-500'
-                    : 'w-5 bg-stone-300 group-hover:bg-amber-500/50 dark:bg-stone-700'
-                )}
-              />
-            </button>
-          ))}
-          <span className="ml-3 text-xs font-light tabular-nums text-stone-500 dark:text-stone-400">
-            Scroll to explore
-          </span>
-        </nav>
+          <nav aria-label="Varieties" className="mt-10 flex items-center gap-2.5">
+            {varieties.map((variety, index) => (
+              <button
+                key={variety.id}
+                type="button"
+                aria-label={variety.name}
+                aria-current={index === activeIndex}
+                onClick={() => {
+                  activeIndexRef.current = index;
+                  setActiveIndex(index);
+                }}
+                className="group flex h-11 items-center focus-visible:outline-none"
+              >
+                <span
+                  className={cn(
+                    'h-1.5 rounded-full transition-all duration-500',
+                    index === activeIndex
+                      ? 'w-12 bg-amber-500'
+                      : 'w-5 bg-stone-300 group-hover:bg-amber-500/50 dark:bg-stone-700'
+                  )}
+                />
+              </button>
+            ))}
+            <span className="ml-3 text-xs font-light tabular-nums text-stone-500 dark:text-stone-400">
+              Scroll to explore
+            </span>
+          </nav>
+        </div>
       </div>
-    </div>
+
+      {/*
+        Outside the pinned stage on purpose. Sitting inside it would either put a
+        horizontal-scroll rail inside a scroll-jacked pin, or pin the rail to
+        whichever variety is active — and the rail only becomes visible once the
+        pin releases, by which point that is always the last one. See
+        `CollectionCatalog`.
+      */}
+      <CollectionCatalog category={category} />
+    </>
   );
 };

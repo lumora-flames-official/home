@@ -8,6 +8,9 @@
  * enquiry, which is why `assertContactConfigured()` runs below.
  */
 
+import type { CatalogProduct } from '../types/catalog';
+import { formatPrice } from '../lib/formatPrice';
+
 /** A social or messaging destination with the handle rendered in copy. */
 export interface ContactChannel {
   /** Platform name, used for `aria-label` and `title`. */
@@ -113,6 +116,52 @@ export const buildBriefMessage = (subject?: string): string => {
   // is what makes the labels read as a list to fill in rather than as prose.
   return [opening, '', ...BRIEF_PROMPTS.map((field) => `${field}: `)].join('\n');
 };
+
+/**
+ * Brief labels for an enquiry about a *listed* candle, as opposed to a bespoke one.
+ *
+ * Shorter than {@link BRIEF_PROMPTS} by one field on purpose: the reader picked a
+ * product off the rail, so its fragrance is already decided and asking for
+ * "Fragrance notes" reads as though the studio didn't notice which candle was
+ * clicked. Occasion and quantity are still open questions.
+ */
+export const PRODUCT_BRIEF_PROMPTS = ['Occasion', 'Quantity'] as const;
+
+/**
+ * Builds the pre-typed enquiry for one catalog product.
+ *
+ * The SKU is the load-bearing part. There is no order system, so this message is
+ * the *only* record that ties an enquiry to a specific listing — without a code
+ * in it the studio is matching "the amber one" against a rail of amber ones by
+ * hand. Price is included for the same reason: it pins what the customer was
+ * shown, so a later price change can't turn into a disagreement.
+ *
+ * @param args.product The product being enquired about.
+ * @param args.categoryTitle Human-readable collection title, e.g.
+ *   `'Bespoke & Personalized'` — the display title, not the id slug, because this
+ *   text is read by a person.
+ * @param args.varietyName Human-readable variety name, e.g.
+ *   `'Custom Fragrance Blends'`.
+ * @returns Multi-line message body, ready to hand to {@link whatsappLink}.
+ *
+ * @example
+ * whatsappLink(buildProductEnquiryMessage({ product, categoryTitle, varietyName }))
+ */
+export const buildProductEnquiryMessage = ({
+  product,
+  categoryTitle,
+  varietyName,
+}: {
+  product: Pick<CatalogProduct, 'name' | 'sku' | 'priceInr'>;
+  categoryTitle: string;
+  varietyName: string;
+}): string =>
+  [
+    `Hi Lumora Flames! I'd like to enquire about ${product.name} (SKU: ${product.sku}), listed at ${formatPrice(product.priceInr)}.`,
+    '',
+    `Collection: ${categoryTitle} — ${varietyName}`,
+    ...PRODUCT_BRIEF_PROMPTS.map((field) => `${field}: `),
+  ].join('\n');
 
 /* ------------------------------------------------------------------ *
  * Studio facts

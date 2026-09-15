@@ -1,0 +1,29 @@
+{
+  "bespoke-personalized": {
+    "custom-fragrance-blends": [
+      {
+        "sku": "BESPOKE-V1-04",
+        "name": "Rosebud Romance",
+        "priceInr": 799,
+        "fragrance": ["Blended with Wooden and Rose(Red and white) Fragrance"],
+        "image": "rosebud-romance.jpg"
+      }
+    ]
+  },
+  "container-jar": {
+    "scented-soy-wax": [
+      {
+        "sku": "CONTAINER-V1-01",
+        "name": "Daisy Meadow Collection",
+        "priceInr": 999,
+        "fragrance": [
+          "Blush Pink — Cherry Blossom & Peony",
+          "Lavender Purple — French Lavender & Iris",
+          "Sage Green — Cucumber Mint & Tea Bloom",
+          "Sunshine Yellow — Citrus Blossom & Honeysuckle"
+        ],
+        "image": "daisy-meadow-collection.jpg"
+      }
+    ]
+  }
+}

@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
+// Explicit `.ts` extension: this file is type-checked under `moduleResolution:
+// nodenext`, which requires one on a relative import.
+import { catalogDevApi } from './scripts/catalogDevApi.ts';
 
 /**
  * Base public path. Empty in dev; set by CI per deploy target, e.g. /lumora-flames/ for GitHub Pages.
@@ -21,5 +24,15 @@ const base = process.env.VITE_BASE_PATH ?? '/';
 // https://vite.dev/config/
 export default defineConfig({
   base,
-  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
+  plugins: [
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
+    tailwindcss(),
+    /*
+     * Write API for the local-only CMS at /update-list. Declares `apply: 'serve'`
+     * internally, so it is never instantiated for a production build - see
+     * scripts/catalogDevApi.ts for why that is a safety boundary and not a tweak.
+     */
+    catalogDevApi(),
+  ],
 });
