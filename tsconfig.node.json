@@ -20,5 +20,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts"]
+  /* `scripts/` holds Vite plugins, which run in Node rather than the browser, so
+     they belong to this project and not tsconfig.app.json — they need
+     `types: ["node"]` for `fs`/`path` and must not see the DOM lib. */
+  "include": ["vite.config.ts", "scripts/**/*.ts"]
 }

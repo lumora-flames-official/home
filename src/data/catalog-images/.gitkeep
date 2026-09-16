@@ -1,0 +1,9 @@
+Product photography written here by the local CMS at `/update-list`.
+
+One subdirectory per collection id, e.g. `bespoke-personalized/amber-glow.jpg`.
+Resolved to hashed URLs by `src/data/catalogImages.ts` — never referenced as a
+string path, and never placed in `public/`, because the site deploys under a base
+prefix where a root-relative literal 404s.
+
+This file exists so the directory survives a clean clone; git does not track
+empty directories, and the glob in `catalogImages.ts` needs its parent to exist.
