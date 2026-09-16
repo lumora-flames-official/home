@@ -25,5 +25,23 @@
         "image": "daisy-meadow-collection.jpg"
       }
     ]
+  },
+  "sculptural-decorative": {
+    "beverage-food": [
+      {
+        "sku": "SCULPTURAL-V1-01",
+        "name": "Motichoor Ladoo Candle Box (Pack of 4)",
+        "priceInr": 299,
+        "fragrance": ["Vanilla Bean", "Caramelized Sugar", "Saffron Strands"],
+        "image": "motichoor-ladoo-candle-box-pack-of-4.jpg"
+      },
+      {
+        "sku": "SCULPTURAL-V1-02",
+        "name": "Spark & Spritz: Orange Fizz",
+        "priceInr": 999,
+        "fragrance": ["Fresh Orange Zest", "Blood Orange", "Sparkling Soda Fizz"],
+        "image": "spark-spritz-orange-fizz.jpg"
+      }
+    ]
   }
 }
