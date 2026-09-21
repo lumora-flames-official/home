@@ -3,8 +3,8 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { CANDLE_CATEGORIES } from '../../data/categories';
-import { getVarietyProducts } from '../../data/catalog';
+import type { CatalogProduct } from '../../types/catalog';
+import type { ProductActionContext } from '../../lib/productActions';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { DURATION, EASE, STAGGER, settleInstantly } from '../../lib/animations';
 import { ProductCard } from './ProductCard';
@@ -13,19 +13,30 @@ gsap.registerPlugin(ScrollTrigger);
 
 /** Props for {@link VarietyCatalog}. */
 export interface VarietyCatalogProps {
-  /** Collection id from `CANDLE_CATEGORIES`, e.g. `'bespoke-personalized'`. */
-  categorySlug: string;
-  /** Variety (sub-category) id within that collection, e.g. `'urli-diya'`. */
-  varietyId: string;
+  /**
+   * Products to show, already selected by the caller.
+   *
+   * Passed in rather than looked up from ids, which is what this component used to do.
+   * `/catalog` filters by a search query, so it has to decide which products exist
+   * *before* rendering — a component that fetched its own data could only be told which
+   * variety to show, never which subset of it, and the page would have had to duplicate
+   * the same lookup to know whether the rail would end up empty.
+   */
+  products: readonly CatalogProduct[];
+  /** Display titles used in each card's enquiry message. */
+  context: ProductActionContext;
+  /** Rendered as the rail's heading. */
+  heading: string;
+  /** Ties the heading to the section for assistive technology. */
+  headingId: string;
 }
 
 /**
- * Horizontal rail of the candles listed under one variety.
+ * Horizontal rail of candles under one variety.
  *
- * Renders `null` when the variety lists nothing, which is the normal state for a
- * variety still awaiting photography. An empty-state card would be worse than
- * absence here: the page above it is an editorial walkthrough, and a row of
- * "coming soon" placeholders reads as a broken shop rather than a considered one.
+ * Purely presentational: it renders the products it is given. Returns `null` for an
+ * empty list so a caller can hand it a filtered set without first checking whether
+ * anything survived the filter.
  *
  * ## Why native scroll-snap and not GSAP Draggable
  *
@@ -39,7 +50,12 @@ export interface VarietyCatalogProps {
  * GSAP is therefore used for exactly one thing here — the cards' entrance — and
  * that is skipped under reduced motion.
  */
-export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({ categorySlug, varietyId }) => {
+export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
+  products,
+  context,
+  heading,
+  headingId,
+}) => {
   const railRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -48,13 +64,9 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({ categorySlug, va
    * Whether either arrow can still move the rail. Held as state because the
    * buttons' disabled attribute depends on it, and updated only on an actual
    * change — a scroll handler that calls `setState` every frame re-renders the
-   * whole rail continuously, the same trap documented on `SubCategoryShowcase`.
+   * whole rail continuously, the same trap the collections journey documents.
    */
   const [overflow, setOverflow] = useState({ start: false, end: false });
-
-  const category = CANDLE_CATEGORIES.find((candidate) => candidate.id === categorySlug);
-  const variety = category?.subCategories.find((candidate) => candidate.id === varietyId);
-  const products = getVarietyProducts(categorySlug, varietyId);
 
   useGSAP(
     () => {
@@ -91,7 +103,7 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({ categorySlug, va
     },
     {
       scope: railRef,
-      dependencies: [categorySlug, varietyId, products.length, prefersReducedMotion],
+      dependencies: [headingId, products.length, prefersReducedMotion],
     }
   );
 
@@ -170,12 +182,9 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({ categorySlug, va
     });
   };
 
-  // Unknown ids are already fatal in dev via `assertCatalogResolves`; in
-  // production, render nothing rather than a headingless rail.
-  if (!category || !variety || products.length === 0) return null;
-
-  const headingId = `catalog-${categorySlug}-${varietyId}`;
-  const context = { categoryTitle: category.title, varietyName: variety.name };
+  // Nothing to show. Returning null rather than an empty-state row is what lets the
+  // catalog page pass a search-filtered list straight through without pre-checking it.
+  if (products.length === 0) return null;
 
   const arrowClasses =
     'grid h-9 w-9 place-items-center rounded-full border border-stone-300 text-stone-700 transition-colors hover:border-amber-500 hover:text-amber-600 disabled:pointer-events-none disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400 dark:focus-visible:ring-offset-stone-950';
@@ -188,7 +197,7 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({ categorySlug, va
             id={headingId}
             className="text-2xl font-light tracking-tight text-stone-900 sm:text-3xl dark:text-stone-100"
           >
-            {variety.name}
+            {heading}
           </h3>
           <p className="text-xs font-light tabular-nums text-stone-500 dark:text-stone-400">
             {products.length} {products.length === 1 ? 'piece' : 'pieces'}

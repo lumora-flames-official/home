@@ -44,7 +44,7 @@ const CAMPAIGNS: Campaign[] = [
     body: 'Brass urlis and floral diyas, hand-poured in limited numbers for the season.',
     icon: CalendarHeart,
     cta: 'See the festive edit',
-    href: '/category/traditional-festive',
+    href: '/collections#traditional-festive',
     span: 'lg:col-span-7',
   },
   {
@@ -74,7 +74,7 @@ const CAMPAIGNS: Campaign[] = [
     body: 'The same wax, wicks, moulds and oils we pour with — available by the kilo.',
     icon: Sparkles,
     cta: 'Browse materials',
-    href: '/category/raw-materials',
+    href: '/collections#raw-materials',
     span: 'lg:col-span-7',
   },
 ];

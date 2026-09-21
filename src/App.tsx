@@ -31,15 +31,13 @@ import { RouteFallback } from './components/ui/RouteFallback';
 const LandingHero = lazy(() =>
   import('./features/landing/LandingHero').then((m) => ({ default: m.LandingHero }))
 );
-const CollectionsStoryView = lazy(() =>
-  import('./features/categories/CollectionsStoryView').then((m) => ({
-    default: m.CollectionsStoryView,
+const CollectionsJourney = lazy(() =>
+  import('./features/categories/CollectionsJourney').then((m) => ({
+    default: m.CollectionsJourney,
   }))
 );
-const SubCategoryShowcase = lazy(() =>
-  import('./features/categories/SubCategoryShowcase').then((m) => ({
-    default: m.SubCategoryShowcase,
-  }))
+const CatalogPage = lazy(() =>
+  import('./features/catalog/CatalogPage').then((m) => ({ default: m.CatalogPage }))
 );
 const AboutStory = lazy(() =>
   import('./features/about/AboutStory').then((m) => ({ default: m.AboutStory }))
@@ -95,7 +93,12 @@ const HomePage: React.FC = () => {
   return (
     <main className="min-h-screen">
       <LandingHero
-        onSelectCategory={(id) => navigate(`/category/${id}`)}
+        /*
+         * Deep-links straight into the journey rather than via `/category/:id`. That
+         * route still works, but it is now a redirect — sending a home CTA through it
+         * would cost the reader a visible extra hop for nothing.
+         */
+        onSelectCategory={(id) => navigate({ pathname: '/collections', hash: `#${id}` })}
         onOpenCollectionsStory={() => navigate('/collections')}
       />
     </main>
@@ -103,40 +106,47 @@ const HomePage: React.FC = () => {
 };
 
 /* ==========================================================================
-   2. COLLECTIONS STORY (/collections)
-   Full-bleed and self-pinning, so it opts out of PageShell's gutters.
+   2. COLLECTIONS JOURNEY (/collections)
+   Full-bleed and self-pinning, so it opts out of PageShell's gutters. The hash
+   carries the reader's position — `#<categoryId>/<varietyId>` — which is what
+   lets `/catalog` link back to exactly where someone left.
    ========================================================================== */
-const CollectionsPage: React.FC = () => {
-  const navigate = useNavigate();
-
-  return (
-    <main className="min-h-screen">
-      <CollectionsStoryView onOpenSubCategory={(id) => navigate(`/category/${id}`)} />
-    </main>
-  );
-};
+const CollectionsPage: React.FC = () => (
+  <main className="min-h-screen">
+    <CollectionsJourney />
+  </main>
+);
 
 /* ==========================================================================
-   3. SUBCATEGORY EXPERIENCE (/category/:categoryId)
+   3. CATALOG (/catalog)
+   Every stocked variety's products. Previously a retired redirect: the old
+   `/catalog` was a searchable grid of *collections* that duplicated the home
+   page. This one lists individual candles with prices and SKUs, which did not
+   exist then — the URL is reused, the page is not.
    ========================================================================== */
-const SubCategoryPage: React.FC = () => {
+const CatalogRoute: React.FC = () => (
+  <main className="min-h-screen">
+    <CatalogPage />
+  </main>
+);
+
+/* ==========================================================================
+   4. RETIRED COLLECTION ROUTE (/category/:categoryId)
+   The journey absorbed this page. Kept as a redirect because six places still
+   point here — the footer's collection list, promo slide CTAs, two campaign
+   cards, the home tiles and the index rail — plus anything already published.
+   ========================================================================== */
+const CategoryRedirect: React.FC = () => {
   const { categoryId } = useParams<{ categoryId: string }>();
-  const navigate = useNavigate();
+  const exists = CANDLE_CATEGORIES.some((c) => c.id === categoryId);
 
-  const category = CANDLE_CATEGORIES.find((c) => c.id === categoryId);
-
-  // Unknown slug: send to the collections story rather than silently showing #1.
-  if (!category) return <Navigate to="/collections" replace />;
-
-  return (
-    <main className="min-h-screen">
-      <SubCategoryShowcase
-        category={category}
-        onBack={() => navigate('/collections')}
-        onOrderCustom={(subject) => navigate('/contact', { state: { categoryTitle: subject } })}
-      />
-    </main>
-  );
+  /*
+   * An unknown slug drops the hash rather than passing it through. Landing at the
+   * top of the journey is a legible outcome; a hash naming a collection that does
+   * not exist would be silently ignored, which looks the same but leaves a broken
+   * link in the address bar to be copied and shared again.
+   */
+  return <Navigate to={exists ? `/collections#${categoryId}` : '/collections'} replace />;
 };
 
 /* ==========================================================================
@@ -186,14 +196,15 @@ export default function App() {
                   <Routes>
                     <Route path="/" element={<HomePage />} />
                     <Route path="/collections" element={<CollectionsPage />} />
-                    <Route path="/category/:categoryId" element={<SubCategoryPage />} />
+                    <Route path="/catalog" element={<CatalogRoute />} />
                     {/*
-                      Retired routes. `/catalog` was a searchable card grid that
-                      duplicated the home page's layout, and `/category/:id/details`
-                      listed the same varieties the subcategory experience now
-                      walks through. Both redirect so existing links keep working.
+                      Retired routes, kept so previously-published links never 404.
+                      `/category/:id` carries its collection across as a hash so the
+                      link still lands where it meant to; `/category/:id/details`
+                      listed the same varieties the journey now walks through and has
+                      no position worth preserving.
                     */}
-                    <Route path="/catalog" element={<Navigate to="/collections" replace />} />
+                    <Route path="/category/:categoryId" element={<CategoryRedirect />} />
                     <Route
                       path="/category/:categoryId/details"
                       element={<Navigate to="/collections" replace />}

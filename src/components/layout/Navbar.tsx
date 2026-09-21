@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, PhoneCall, Home, BookOpen, Moon, Sun, Menu, X } from 'lucide-react';
+import { Compass, PhoneCall, Home, BookOpen, LayoutGrid, Moon, Sun, Menu, X } from 'lucide-react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useTheme } from '../../context';
@@ -18,9 +18,15 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+/*
+ * Order is the reader's journey, not alphabetical: browse the ideas, then see what is
+ * actually available, then the brand, then get in touch. `Collections` and `Catalog` are
+ * adjacent because they are two views of the same content and link into each other.
+ */
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/collections', label: 'Collections', icon: Compass },
+  { to: '/catalog', label: 'Catalog', icon: LayoutGrid },
   { to: '/about', label: 'Our Story', icon: BookOpen },
   { to: '/contact', label: 'Contact', icon: PhoneCall },
 ];

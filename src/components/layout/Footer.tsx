@@ -44,6 +44,7 @@ const SOCIAL_LINKS: SocialLink[] = [
 const EXPLORE_LINKS = [
   { to: '/', label: 'Home' },
   { to: '/collections', label: 'Collections' },
+  { to: '/catalog', label: 'Catalog' },
   { to: '/about', label: 'Our Story' },
   { to: '/contact', label: 'Bespoke Concierge' },
 ];
@@ -104,8 +105,10 @@ export const Footer: React.FC = () => (
           <ul className="space-y-2.5">
             {CANDLE_CATEGORIES.map((category) => (
               <li key={category.id}>
+                {/* Deep-links into the journey. `/category/:id` still resolves here via
+                    a redirect, but going through it would cost a visible extra hop. */}
                 <Link
-                  to={`/category/${category.id}`}
+                  to={{ pathname: '/collections', hash: `#${category.id}` }}
                   className="text-sm font-light text-stone-600 transition-colors hover:text-amber-500 dark:text-stone-400 dark:hover:text-amber-400"
                 >
                   {category.title}

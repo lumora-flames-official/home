@@ -24,7 +24,7 @@ export interface PromotionalCarouselProps {
   /** Which placement to render. See {@link PromoPlacement}. */
   placement: PromoPlacement;
   /**
-   * Overrides the default `navigate('/category/:id')` behaviour. Useful when a
+   * Overrides the default `navigate('/collections#:id')` behaviour. Useful when a
    * host page wants to intercept the transition (for example to run an exit
    * animation first).
    */
@@ -55,7 +55,9 @@ export const PromotionalCarousel: React.FC<PromotionalCarouselProps> = ({
       onNavigateCollection(collectionId);
       return;
     }
-    navigate(`/category/${collectionId}`);
+    // Deep-links into the journey at the slide's collection. `/category/:id` still
+    // redirects here, but routing a slide CTA through it costs a visible extra hop.
+    navigate({ pathname: '/collections', hash: `#${collectionId}` });
   };
 
   switch (placement) {
