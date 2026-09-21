@@ -5,7 +5,7 @@ import catalogJson from './catalog.json';
 
 /**
  * The product catalog — individual candles, listed beneath their variety on
- * `/category/:categoryId`.
+ * `/catalog`.
  *
  * This is the one dataset in the project that is written by tooling instead of by
  * hand: the local-only CMS at `/update-list` posts to the dev-server middleware
@@ -81,6 +81,54 @@ export const getVarietyProducts = (
  */
 export const countCollectionProducts = (categoryId: string): number =>
   Object.values(CATALOG[categoryId] ?? {}).reduce((total, list) => total + list.length, 0);
+
+/**
+ * Whether a variety has anything listed.
+ *
+ * Drives the collections journey's CTA, which has to be honest: a variety with stock
+ * offers "Explore catalog", and one without offers "Commission this" instead of
+ * sending the reader to a catalog section that does not exist. Most varieties are
+ * empty, so this is the common case rather than an edge one.
+ *
+ * @param categoryId Collection id.
+ * @param varietyId Sub-category id within it.
+ */
+export const hasVarietyProducts = (categoryId: string, varietyId: string): boolean =>
+  (CATALOG[categoryId]?.[varietyId]?.length ?? 0) > 0;
+
+/** One variety's products, with the display titles the catalog page needs. */
+export interface CatalogGroup {
+  categoryId: string;
+  categoryTitle: string;
+  varietyId: string;
+  varietyName: string;
+  products: readonly CatalogProduct[];
+}
+
+/**
+ * Every **stocked** variety, in `CANDLE_CATEGORIES` order — the catalog page's spine.
+ *
+ * Iterates the category tree rather than `Object.entries(CATALOG)` so the ordering is
+ * the canonical one a reader already saw in the journey, not JSON key insertion order,
+ * which reflects nothing more than which product the studio happened to add first.
+ *
+ * Empty varieties are omitted rather than returned with an empty `products` array.
+ * That is the user-facing decision: with four products across nineteen varieties, a
+ * page listing them all would be fifteen "coming soon" panels, which reads as a broken
+ * shop. Callers that need to know about an empty variety ask `hasVarietyProducts`.
+ */
+export const getCatalogGroups = (): CatalogGroup[] =>
+  CANDLE_CATEGORIES.flatMap((category) =>
+    category.subCategories
+      .map((variety) => ({
+        categoryId: category.id,
+        categoryTitle: category.title,
+        varietyId: variety.id,
+        varietyName: variety.name,
+        products: getVarietyProducts(category.id, variety.id),
+      }))
+      .filter((group) => group.products.length > 0)
+  );
 
 /* -------------------------------------------------------------------------- */
 /* Development-time integrity check                                            */

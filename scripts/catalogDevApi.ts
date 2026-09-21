@@ -230,6 +230,73 @@ const resolveImagePath = (categoryId: string, filename: string): string => {
   return resolved;
 };
 
+/**
+ * Chooses a collision-free filename for a product photo.
+ *
+ * Named after the product so `catalog-images/` is readable in a diff, and
+ * suffixed rather than overwritten on collision — two candles can legitimately
+ * share a name, and losing the earlier photo would be silent.
+ *
+ * @param keep The editing product's *own* current filename, which it is allowed to
+ *   overwrite. Without this, replacing a photo without renaming the product would
+ *   see its own file as taken and write `amber-glow-2.jpg`, orphaning the original
+ *   and growing a suffix on every subsequent replacement.
+ */
+const pickImageFilename = (
+  catalog: CatalogData,
+  categoryId: string,
+  name: string,
+  extension: string,
+  keep?: string
+): string => {
+  const taken = new Set(
+    Object.values(catalog[categoryId] ?? {}).flatMap((list) => list.map((p) => p.image))
+  );
+  if (keep) taken.delete(keep);
+
+  const base = slugify(name) || 'product';
+  let filename = `${base}${extension}`;
+  for (let suffix = 2; taken.has(filename); suffix += 1) {
+    filename = `${base}-${suffix}${extension}`;
+  }
+
+  return filename;
+};
+
+/** Decodes an uploaded photo and validates its extension. */
+const decodeUpload = (body: Record<string, unknown>): { bytes: Buffer; extension: string } => {
+  const imageBase64 = requireString(body, 'imageBase64');
+  const extension = path.extname(requireString(body, 'imageFilename')).toLowerCase();
+
+  if (!ALLOWED_EXTENSIONS.has(extension)) {
+    throw new RequestError(
+      400,
+      `"${extension}" images aren't supported. Use one of: ${[...ALLOWED_EXTENSIONS].join(', ')}.`
+    );
+  }
+
+  const bytes = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+  if (bytes.length === 0) throw new RequestError(400, 'Decoded image is empty.');
+
+  return { bytes, extension };
+};
+
+/**
+ * Deletes a file, tolerating one that is already gone.
+ *
+ * Missing is an acceptable outcome for both callers: a delete is finishing the job,
+ * and an update is superseding a photo that `assertCatalogResolves` may already be
+ * complaining about. Any *other* error still throws — a permissions problem should
+ * not be swallowed.
+ */
+const unlinkIfPresent = async (target: string): Promise<void> => {
+  try {
+    await unlink(target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+};
+
 /* ------------------------------------------------------------------ *
  * Handlers
  * ------------------------------------------------------------------ */
@@ -246,8 +313,6 @@ const createProduct = async (
   const name = requireString(body, 'name');
   const priceInr = requirePrice(body);
   const fragrance = readFragrance(body);
-  const imageBase64 = requireString(body, 'imageBase64');
-  const imageFilename = requireString(body, 'imageFilename');
 
   const category = categories.find((candidate) => candidate.id === categoryId);
   if (!category) throw new RequestError(400, `Unknown collection "${categoryId}".`);
@@ -257,33 +322,13 @@ const createProduct = async (
     throw new RequestError(400, `Collection "${categoryId}" has no variety "${varietyId}".`);
   }
 
-  const extension = path.extname(imageFilename).toLowerCase();
-  if (!ALLOWED_EXTENSIONS.has(extension)) {
-    throw new RequestError(
-      400,
-      `"${extension}" images aren't supported. Use one of: ${[...ALLOWED_EXTENSIONS].join(', ')}.`
-    );
-  }
+  const { bytes, extension } = decodeUpload(body);
 
   const catalog = await readCatalog();
   const variety = catalog[categoryId]?.[varietyId] ?? [];
-
-  // Name the file after the product so the directory is readable in a diff, and
-  // suffix on collision rather than overwriting — two candles can legitimately
-  // share a name, and losing the earlier photo would be silent.
-  const baseName = slugify(name) || 'product';
-  const taken = new Set(
-    Object.values(catalog[categoryId] ?? {}).flatMap((l) => l.map((p) => p.image))
-  );
-  let filename = `${baseName}${extension}`;
-  for (let suffix = 2; taken.has(filename); suffix += 1) {
-    filename = `${baseName}-${suffix}${extension}`;
-  }
+  const filename = pickImageFilename(catalog, categoryId, name, extension);
 
   const target = resolveImagePath(categoryId, filename);
-  const bytes = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-  if (bytes.length === 0) throw new RequestError(400, 'Decoded image is empty.');
-
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, bytes);
 
@@ -316,7 +361,23 @@ const locate = (
   throw new RequestError(404, `No product with SKU "${sku}".`);
 };
 
-/** `PUT /api/catalog/:sku` — updates the editable fields. */
+/**
+ * `PUT /api/catalog/:sku` — updates name, price, fragrance and/or the photo.
+ *
+ * Every field is optional and an omitted one is left alone, so a caller can send a
+ * single changed value without having to echo the rest back correctly.
+ *
+ * **What is deliberately not editable, and why:** the SKU, and the collection and
+ * variety the product is filed under. The SKU encodes both (`BESPOKE-V1-…`) and is
+ * minted once and never recomputed, because it has already been quoted in WhatsApp
+ * enquiries. Allowing a move would therefore either renumber a live product code or
+ * leave a SKU that lies about where the product sits. Re-filing a candle is
+ * delete-and-re-add, which correctly gives it a new code.
+ *
+ * The stored filename is *not* renamed when only the name changes. It would be
+ * churn in git history for no gain — the filename is never shown to a visitor, and
+ * a rename means a delete plus a write where nothing about the image changed.
+ */
 const updateProduct = async (
   sku: string,
   body: Record<string, unknown>
@@ -325,18 +386,45 @@ const updateProduct = async (
   const { categoryId, varietyId, index } = locate(catalog, sku);
   const existing = catalog[categoryId][varietyId][index];
 
-  // `sku` and `image` are deliberately not editable here. The SKU has already been
-  // quoted in enquiries, and swapping the image means a file write — that is an
-  // upload, not an edit, so it goes through POST.
+  const name = body.name === undefined ? existing.name : requireString(body, 'name');
+
+  let image = existing.image;
+  let superseded: string | undefined;
+
+  if (body.imageBase64 !== undefined) {
+    const { bytes, extension } = decodeUpload(body);
+
+    // `existing.image` is passed as `keep` so replacing a photo without renaming the
+    // product reuses its own filename instead of suffixing itself to `-2`.
+    image = pickImageFilename(catalog, categoryId, name, extension, existing.image);
+
+    const target = resolveImagePath(categoryId, image);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, bytes);
+
+    if (image !== existing.image) superseded = existing.image;
+  }
+
   const updated: StoredProduct = {
     ...existing,
-    name: body.name === undefined ? existing.name : requireString(body, 'name'),
+    name,
     priceInr: body.priceInr === undefined ? existing.priceInr : requirePrice(body),
     fragrance: body.fragrance === undefined ? existing.fragrance : readFragrance(body),
+    image,
   };
 
   catalog[categoryId][varietyId][index] = updated;
   await writeCatalog(catalog);
+
+  /*
+   * Ordering is load-bearing: new file, then JSON, then remove the old file.
+   *
+   * Any interruption then leaves `catalog.json` pointing at a file that exists.
+   * Deleting first would open a window where a crash strands an entry whose image
+   * is gone, which makes `assertCatalogResolves` throw on every page load — the app
+   * would not boot, and the only way back is editing JSON by hand.
+   */
+  if (superseded) await unlinkIfPresent(resolveImagePath(categoryId, superseded));
 
   return updated;
 };
@@ -354,14 +442,10 @@ const deleteProduct = async (sku: string): Promise<void> => {
 
   await writeCatalog(catalog);
 
-  // After the metadata, and tolerant of a missing file: an orphaned image is
+  // Metadata first, for the same reason as the update above: an orphaned image is
   // harmless clutter, whereas an orphaned *entry* whose image is gone makes the
   // dev-time assertion throw on every page load.
-  try {
-    await unlink(resolveImagePath(categoryId, removed.image));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  await unlinkIfPresent(resolveImagePath(categoryId, removed.image));
 };
 
 /* ------------------------------------------------------------------ *

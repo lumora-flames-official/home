@@ -1,6 +1,6 @@
 /**
  * Shapes for the product catalog — the individual candles listed beneath each
- * variety on `/category/:categoryId`.
+ * variety on `/catalog`.
  *
  * This is the first dataset in the project that is *written by tooling* rather
  * than hand-authored: the local-only CMS at `/update-list` appends to
