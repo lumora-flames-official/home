@@ -7,6 +7,7 @@ import type { CatalogProduct } from '../../types/catalog';
 import type { ProductActionContext } from '../../lib/productActions';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { DURATION, EASE, STAGGER, settleInstantly } from '../../lib/animations';
+import { cn } from '../../lib/utils';
 import { ProductCard } from './ProductCard';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -29,10 +30,20 @@ export interface VarietyCatalogProps {
   heading: string;
   /** Ties the heading to the section for assistive technology. */
   headingId: string;
+  /**
+   * `'rail'` (default) is the horizontal scroll-snap track; `'grid'` wraps into rows.
+   *
+   * The catalog page uses `'grid'` because it renders one collection at a time and so
+   * has the full page width to spend — a rail there would hide products behind a
+   * horizontal gesture for no reason, when the whole point of paginating by collection
+   * was to give each list room. The rail remains correct where a variety is one band
+   * inside a longer vertical narrative, which is what it was built for.
+   */
+  layout?: 'rail' | 'grid';
 }
 
 /**
- * Horizontal rail of candles under one variety.
+ * The candles listed under one variety, as a horizontal rail or a wrapping grid.
  *
  * Purely presentational: it renders the products it is given. Returns `null` for an
  * empty list so a caller can hand it a filtered set without first checking whether
@@ -55,7 +66,9 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
   context,
   heading,
   headingId,
+  layout = 'rail',
 }) => {
+  const isRail = layout === 'rail';
   const railRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -153,7 +166,9 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
    */
   useEffect(() => {
     const track = trackRef.current;
-    if (!track) return;
+    // A grid has no horizontal overflow and no arrows to keep in sync, so there is
+    // nothing for the observer to watch.
+    if (!track || !isRail) return;
 
     const observer = new ResizeObserver(syncOverflow);
     observer.observe(track);
@@ -161,7 +176,7 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
     for (const card of track.children) observer.observe(card);
 
     return () => observer.disconnect();
-  }, [products.length]);
+  }, [products.length, isRail]);
 
   /**
    * Scrolls by one card.
@@ -207,7 +222,7 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
         {/* Redundant for touch and trackpad, which scroll the rail directly, so it
             is hidden from assistive tech rather than duplicating the card list as
             two more tab stops per rail. */}
-        <div className="hidden shrink-0 gap-2 sm:flex" aria-hidden="true">
+        <div className={cn('hidden shrink-0 gap-2', isRail && 'sm:flex')} aria-hidden="true">
           <button
             type="button"
             tabIndex={-1}
@@ -231,13 +246,26 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
 
       <div
         ref={trackRef}
-        onScroll={syncOverflow}
-        /* `[scrollbar-width:none]` hides the bar without hiding the overflow — the
-           rail must stay scrollable, so `overflow-hidden` is not an option. */
-        className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onScroll={isRail ? syncOverflow : undefined}
+        className={cn(
+          isRail
+            ? /* `[scrollbar-width:none]` hides the bar without hiding the overflow — the
+                 rail must stay scrollable, so `overflow-hidden` is not an option. The
+                 `-mx-1`/`px-1` pair keeps a focused card's ring from being clipped. */
+              '-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+            : 'grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+        )}
       >
         {products.map((product, index) => (
-          <ProductCard key={product.sku} product={product} context={context} eager={index === 0} />
+          <ProductCard
+            key={product.sku}
+            product={product}
+            context={context}
+            layout={layout}
+            /* Eagerly load only what is plausibly above the fold: one card in a rail,
+               a first grid row's worth otherwise. */
+            eager={index < (isRail ? 1 : 4)}
+          />
         ))}
       </div>
     </section>
