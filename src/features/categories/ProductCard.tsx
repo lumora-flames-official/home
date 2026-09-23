@@ -19,6 +19,15 @@ export interface ProductCardProps {
    * bandwidth on first paint.
    */
   eager?: boolean;
+  /**
+   * How the parent positions this card.
+   *
+   * `'rail'` (default) sizes it for a horizontal scroll-snap track, so the card owns
+   * its own width and refuses to shrink. `'grid'` hands sizing to the parent's grid
+   * track instead — the two cannot be one class string, because a rail card's fixed
+   * width is exactly what a grid cell must not have.
+   */
+  layout?: 'rail' | 'grid';
 }
 
 /**
@@ -42,7 +51,12 @@ export interface ProductCardProps {
  * render a button. See `lib/productActions.ts` for why the dispatcher returns an
  * intent rather than owning the click.
  */
-export const ProductCard: React.FC<ProductCardProps> = ({ product, context, eager = false }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({
+  product,
+  context,
+  eager = false,
+  layout = 'rail',
+}) => {
   const intent = resolveProductAction(product, 'inquire', context);
 
   // Shared by both branches below so the two elements are visually identical and
@@ -56,7 +70,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, context, eage
   return (
     <article
       className={cn(
-        'flex w-[78vw] shrink-0 snap-start flex-col overflow-hidden rounded-3xl sm:w-[20rem]',
+        'flex flex-col overflow-hidden rounded-3xl',
+        layout === 'rail' ? 'w-[78vw] shrink-0 snap-start sm:w-[20rem]' : 'w-full',
         DESIGN_TOKENS.glass.card
       )}
     >

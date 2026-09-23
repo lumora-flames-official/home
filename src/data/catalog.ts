@@ -1,3 +1,4 @@
+import type { Category } from '../types/category';
 import type { CatalogData, CatalogProduct, StoredProduct } from '../types/catalog';
 import { CANDLE_CATEGORIES } from './categories';
 import { catalogImageUrl } from './catalogImages';
@@ -105,30 +106,63 @@ export interface CatalogGroup {
   products: readonly CatalogProduct[];
 }
 
+/** One collection's listings — the unit the catalog page paginates by. */
+export interface CatalogCollection {
+  categoryId: string;
+  categoryTitle: string;
+  /**
+   * Stocked varieties in dataset order. Empty when the collection lists nothing,
+   * which is the majority case and why the catalog renders a commission prompt
+   * rather than assuming every tab has content.
+   */
+  groups: CatalogGroup[];
+  /** Products across every group, precomputed so tab badges don't re-reduce. */
+  productCount: number;
+}
+
 /**
- * Every **stocked** variety, in `CANDLE_CATEGORIES` order — the catalog page's spine.
+ * A collection's **stocked** varieties, in `CANDLE_CATEGORIES` order.
  *
  * Iterates the category tree rather than `Object.entries(CATALOG)` so the ordering is
  * the canonical one a reader already saw in the journey, not JSON key insertion order,
  * which reflects nothing more than which product the studio happened to add first.
  *
- * Empty varieties are omitted rather than returned with an empty `products` array.
- * That is the user-facing decision: with four products across nineteen varieties, a
- * page listing them all would be fifteen "coming soon" panels, which reads as a broken
- * shop. Callers that need to know about an empty variety ask `hasVarietyProducts`.
+ * Empty varieties are omitted rather than returned with an empty `products` array:
+ * with four products across nineteen varieties, listing them all would be fifteen
+ * "coming soon" panels, which reads as a broken shop. Callers that need to know about
+ * an empty variety ask `hasVarietyProducts`.
  */
-export const getCatalogGroups = (): CatalogGroup[] =>
-  CANDLE_CATEGORIES.flatMap((category) =>
-    category.subCategories
-      .map((variety) => ({
-        categoryId: category.id,
-        categoryTitle: category.title,
-        varietyId: variety.id,
-        varietyName: variety.name,
-        products: getVarietyProducts(category.id, variety.id),
-      }))
-      .filter((group) => group.products.length > 0)
-  );
+const stockedGroups = (category: Category): CatalogGroup[] =>
+  category.subCategories
+    .map((variety) => ({
+      categoryId: category.id,
+      categoryTitle: category.title,
+      varietyId: variety.id,
+      varietyName: variety.name,
+      products: getVarietyProducts(category.id, variety.id),
+    }))
+    .filter((group) => group.products.length > 0);
+
+/**
+ * All six collections, stocked or not — the catalog page's spine.
+ *
+ * Every collection is returned even when it lists nothing, because the catalog's tab
+ * strip is a fixed set of six: a strip that grew as products were added would move
+ * under the reader's thumb between visits, and a tab missing entirely gives no way to
+ * find out that a collection exists but is empty. An unstocked tab is a legitimate
+ * destination that offers a commission instead of a grid.
+ */
+export const getCatalogCollections = (): CatalogCollection[] =>
+  CANDLE_CATEGORIES.map((category) => {
+    const groups = stockedGroups(category);
+
+    return {
+      categoryId: category.id,
+      categoryTitle: category.title,
+      groups,
+      productCount: groups.reduce((total, group) => total + group.products.length, 0),
+    };
+  });
 
 /* -------------------------------------------------------------------------- */
 /* Development-time integrity check                                            */

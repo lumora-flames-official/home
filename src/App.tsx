@@ -3,6 +3,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  useLocation,
   useNavigate,
   useParams,
   Navigate,
@@ -69,6 +70,24 @@ const UpdateListPanel = import.meta.env.DEV
       import('./features/admin/UpdateListPanel').then((m) => ({ default: m.UpdateListPanel }))
     )
   : null;
+
+/**
+ * Routes that end without the global footer.
+ *
+ * `/catalog` is an application surface rather than a page of the site: it has its own
+ * fixed header, its own navigation rail, and a list that continues into the next
+ * collection when you scroll past the bottom. A footer there is unreachable by design —
+ * the reader who scrolls to the end of a collection gets the next one, so anything
+ * beneath it can only be arrived at by the auto-advance failing. Its links live in the
+ * rail's commission CTA and the global navbar instead.
+ */
+const FOOTERLESS_ROUTES = new Set(['/catalog']);
+
+/** The global footer, absent on routes that own their full viewport. */
+const SiteFooter: React.FC = () => {
+  const { pathname } = useLocation();
+  return FOOTERLESS_ROUTES.has(pathname) ? null : <Footer />;
+};
 
 /** Standard page shell: max width, gutters, and clearance for the fixed navbar. */
 const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -231,7 +250,7 @@ export default function App() {
                 </Suspense>
               </PageTransition>
 
-              <Footer />
+              <SiteFooter />
             </div>
           </div>
         </Router>
