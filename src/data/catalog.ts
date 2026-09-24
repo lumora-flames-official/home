@@ -40,15 +40,22 @@ const NONE: readonly CatalogProduct[] = [];
  * @param categoryId Key it was filed under.
  * @param varietyId Sub-key it was filed under.
  */
-const hydrate = (stored: StoredProduct, categoryId: string, varietyId: string): CatalogProduct => ({
-  ...stored,
-  categoryId,
-  varietyId,
+const hydrate = (stored: StoredProduct, categoryId: string, varietyId: string): CatalogProduct => {
   // `?? ''` cannot happen in a checked build — assertCatalogResolves throws on a
   // missing file in dev, and a production build was necessarily preceded by one.
-  // An empty src degrades to a blank frame rather than a crashed rail.
-  imageUrl: catalogImageUrl(categoryId, stored.image) ?? '',
-});
+  // An empty src degrades to a blank frame rather than a crashed grid.
+  const resolve = (filename: string): string => catalogImageUrl(categoryId, filename) ?? '';
+
+  return {
+    ...stored,
+    categoryId,
+    varietyId,
+    imageUrl: resolve(stored.image),
+    // Cover first, then the extras in authoring order. Built here rather than in the
+    // gallery so no consumer has to know that the cover lives in a different field.
+    imageUrls: [stored.image, ...(stored.images ?? [])].map(resolve),
+  };
+};
 
 /**
  * Products listed under one variety, in authoring order.
@@ -217,10 +224,15 @@ function assertCatalogResolves(): void {
       }
 
       for (const product of products) {
-        if (!catalogImageUrl(categoryId, product.image)) {
-          problems.push(
-            `• ${product.sku}: image not on disk — expected src/data/catalog-images/${categoryId}/${product.image}`
-          );
+        // Extras are checked as strictly as the cover. A missing gallery shot shows
+        // as one blank frame inside the dialog rather than a broken tile, which is
+        // exactly the kind of half-visible fault nobody notices in a screenshot.
+        for (const filename of [product.image, ...(product.images ?? [])]) {
+          if (!catalogImageUrl(categoryId, filename)) {
+            problems.push(
+              `• ${product.sku}: image not on disk — expected src/data/catalog-images/${categoryId}/${filename}`
+            );
+          }
         }
 
         const owner = seenSkus.get(product.sku);

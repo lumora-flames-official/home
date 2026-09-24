@@ -44,8 +44,20 @@ const IMAGES_ROOT = path.join(ROOT, 'src', 'data', 'catalog-images');
  */
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
 
-/** 25 MB. Source photography is 2–3 MB, so this is generous; unbounded is not. */
-const MAX_BODY_BYTES = 25 * 1024 * 1024;
+/**
+ * 60 MB. Source photography is 2–3 MB and base64 inflates by a third, so a full
+ * six-shot gallery lands near 24 MB — the previous 25 MB ceiling would have rejected
+ * it outright. Generous, but still a ceiling: unbounded is not.
+ */
+const MAX_BODY_BYTES = 60 * 1024 * 1024;
+
+/**
+ * Photos accepted per product.
+ *
+ * A limit rather than none, because every image is committed to the repository and
+ * a stray select-all in a photo library is one keystroke.
+ */
+const MAX_IMAGES = 6;
 
 /** Minimal shape of a stored product, mirroring `src/types/catalog.ts`. */
 interface StoredProduct {
@@ -54,6 +66,7 @@ interface StoredProduct {
   priceInr: number;
   fragrance: string[];
   image: string;
+  images?: string[];
 }
 
 type CatalogData = Record<string, Record<string, StoredProduct[]>>;
@@ -231,54 +244,124 @@ const resolveImagePath = (categoryId: string, filename: string): string => {
 };
 
 /**
- * Chooses a collision-free filename for a product photo.
+ * Every filename already used under a collection, across all of its varieties.
  *
- * Named after the product so `catalog-images/` is readable in a diff, and
- * suffixed rather than overwritten on collision — two candles can legitimately
- * share a name, and losing the earlier photo would be silent.
- *
- * @param keep The editing product's *own* current filename, which it is allowed to
- *   overwrite. Without this, replacing a photo without renaming the product would
+ * @param keep Filenames the caller is allowed to overwrite — the editing product's
+ *   own images. Without this, replacing a photo without renaming the product would
  *   see its own file as taken and write `amber-glow-2.jpg`, orphaning the original
  *   and growing a suffix on every subsequent replacement.
  */
-const pickImageFilename = (
+const takenFilenames = (
   catalog: CatalogData,
   categoryId: string,
+  keep: readonly string[] = []
+): Set<string> => {
+  const taken = new Set(
+    Object.values(catalog[categoryId] ?? {}).flatMap((list) =>
+      list.flatMap((p) => [p.image, ...(p.images ?? [])])
+    )
+  );
+  for (const filename of keep) taken.delete(filename);
+  return taken;
+};
+
+/**
+ * Chooses a collision-free filename for a product photo and marks it as used.
+ *
+ * Named after the product so `catalog-images/` is readable in a diff, and suffixed
+ * rather than overwritten on collision — two candles can legitimately share a name,
+ * and losing the earlier photo would be silent.
+ *
+ * `taken` is **mutated**, which is the point: a multi-image upload calls this once
+ * per file and every call has to see the names the previous ones just claimed. A
+ * version that rebuilt the set from the catalog each time would hand all six shots
+ * of one candle the same filename and write each over the last.
+ */
+const pickImageFilename = (
+  taken: Set<string>,
   name: string,
   extension: string,
-  keep?: string
+  index: number
 ): string => {
-  const taken = new Set(
-    Object.values(catalog[categoryId] ?? {}).flatMap((list) => list.map((p) => p.image))
-  );
-  if (keep) taken.delete(keep);
+  // Extras carry a `-2`, `-3` … suffix from the start, so a gallery reads in order
+  // on disk instead of depending on collision order to number itself.
+  const base = `${slugify(name) || 'product'}${index === 0 ? '' : `-${index + 1}`}`;
 
-  const base = slugify(name) || 'product';
   let filename = `${base}${extension}`;
   for (let suffix = 2; taken.has(filename); suffix += 1) {
     filename = `${base}-${suffix}${extension}`;
   }
 
+  taken.add(filename);
   return filename;
 };
 
-/** Decodes an uploaded photo and validates its extension. */
-const decodeUpload = (body: Record<string, unknown>): { bytes: Buffer; extension: string } => {
-  const imageBase64 = requireString(body, 'imageBase64');
-  const extension = path.extname(requireString(body, 'imageFilename')).toLowerCase();
+/**
+ * Decodes the uploaded photos and validates their extensions.
+ *
+ * Expects `images: [{ base64, filename }]`, cover first. One array rather than a
+ * cover field plus an extras field: the panel's file input hands over the whole
+ * selection at once, so a split here would only exist to be reassembled.
+ *
+ * @returns The decoded files in order, or `null` when the key is absent — which an
+ *   update reads as "leave the photos alone".
+ */
+const decodeUploads = (
+  body: Record<string, unknown>
+): { bytes: Buffer; extension: string }[] | null => {
+  if (body.images === undefined) return null;
 
-  if (!ALLOWED_EXTENSIONS.has(extension)) {
-    throw new RequestError(
-      400,
-      `"${extension}" images aren't supported. Use one of: ${[...ALLOWED_EXTENSIONS].join(', ')}.`
-    );
+  if (!Array.isArray(body.images) || body.images.length === 0) {
+    throw new RequestError(400, '"images" must be a non-empty array.');
+  }
+  if (body.images.length > MAX_IMAGES) {
+    throw new RequestError(400, `At most ${MAX_IMAGES} photos per product.`);
   }
 
-  const bytes = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-  if (bytes.length === 0) throw new RequestError(400, 'Decoded image is empty.');
+  return body.images.map((entry, index) => {
+    const upload = (entry ?? {}) as Record<string, unknown>;
+    const base64 = requireString(upload, 'base64');
+    const extension = path.extname(requireString(upload, 'filename')).toLowerCase();
 
-  return { bytes, extension };
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      throw new RequestError(
+        400,
+        `"${extension}" images aren't supported. Use one of: ${[...ALLOWED_EXTENSIONS].join(', ')}.`
+      );
+    }
+
+    const bytes = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    if (bytes.length === 0) throw new RequestError(400, `Photo ${index + 1} decoded to nothing.`);
+
+    return { bytes, extension };
+  });
+};
+
+/**
+ * Writes a product's photos to disk and returns their filenames, cover first.
+ *
+ * Files land before `catalog.json` is touched, for the reason spelled out on
+ * {@link updateProduct}: an entry pointing at a file that is not there yet makes
+ * `assertCatalogResolves` throw on every page load.
+ */
+const writeUploads = async (
+  uploads: { bytes: Buffer; extension: string }[],
+  taken: Set<string>,
+  categoryId: string,
+  name: string
+): Promise<string[]> => {
+  const filenames = uploads.map((upload, index) =>
+    pickImageFilename(taken, name, upload.extension, index)
+  );
+
+  await mkdir(path.join(IMAGES_ROOT, categoryId), { recursive: true });
+  await Promise.all(
+    filenames.map((filename, index) =>
+      writeFile(resolveImagePath(categoryId, filename), uploads[index].bytes)
+    )
+  );
+
+  return filenames;
 };
 
 /**
@@ -322,22 +405,28 @@ const createProduct = async (
     throw new RequestError(400, `Collection "${categoryId}" has no variety "${varietyId}".`);
   }
 
-  const { bytes, extension } = decodeUpload(body);
+  const uploads = decodeUploads(body);
+  if (!uploads) throw new RequestError(400, 'At least one photo is required.');
 
   const catalog = await readCatalog();
   const variety = catalog[categoryId]?.[varietyId] ?? [];
-  const filename = pickImageFilename(catalog, categoryId, name, extension);
 
-  const target = resolveImagePath(categoryId, filename);
-  await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, bytes);
+  const [cover, ...extras] = await writeUploads(
+    uploads,
+    takenFilenames(catalog, categoryId),
+    categoryId,
+    name
+  );
 
   const product: StoredProduct = {
     sku: buildSku(categoryId, varietyIndex, nextSkuSequence(variety.map((p) => p.sku))),
     name,
     priceInr,
     fragrance,
-    image: filename,
+    image: cover,
+    // Omitted rather than written as `[]` when there is only a cover, so a
+    // single-photo record is byte-identical to one written before galleries existed.
+    ...(extras.length > 0 ? { images: extras } : {}),
   };
 
   catalog[categoryId] ??= {};
@@ -377,6 +466,12 @@ const locate = (
  * The stored filename is *not* renamed when only the name changes. It would be
  * churn in git history for no gain — the filename is never shown to a visitor, and
  * a rename means a delete plus a write where nothing about the image changed.
+ *
+ * **Photos are replaced as a set, not merged.** Sending `images` supersedes the whole
+ * gallery; omitting it keeps every existing shot. There is no "append one" or "remove
+ * the third" operation, because the panel's file input hands over a complete selection
+ * anyway — per-image editing would need stable ids for files whose only identity is
+ * their position.
  */
 const updateProduct = async (
   sku: string,
@@ -385,46 +480,51 @@ const updateProduct = async (
   const catalog = await readCatalog();
   const { categoryId, varietyId, index } = locate(catalog, sku);
   const existing = catalog[categoryId][varietyId][index];
+  const existingFilenames = [existing.image, ...(existing.images ?? [])];
 
   const name = body.name === undefined ? existing.name : requireString(body, 'name');
 
-  let image = existing.image;
-  let superseded: string | undefined;
+  const uploads = decodeUploads(body);
+  let filenames = existingFilenames;
 
-  if (body.imageBase64 !== undefined) {
-    const { bytes, extension } = decodeUpload(body);
-
-    // `existing.image` is passed as `keep` so replacing a photo without renaming the
-    // product reuses its own filename instead of suffixing itself to `-2`.
-    image = pickImageFilename(catalog, categoryId, name, extension, existing.image);
-
-    const target = resolveImagePath(categoryId, image);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, bytes);
-
-    if (image !== existing.image) superseded = existing.image;
+  if (uploads) {
+    // The product's own filenames are passed as `keep`, so replacing photos without
+    // renaming the product reuses them instead of suffixing itself to `-2`.
+    filenames = await writeUploads(
+      uploads,
+      takenFilenames(catalog, categoryId, existingFilenames),
+      categoryId,
+      name
+    );
   }
+
+  const [cover, ...extras] = filenames;
 
   const updated: StoredProduct = {
     ...existing,
     name,
     priceInr: body.priceInr === undefined ? existing.priceInr : requirePrice(body),
     fragrance: body.fragrance === undefined ? existing.fragrance : readFragrance(body),
-    image,
+    image: cover,
+    ...(extras.length > 0 ? { images: extras } : {}),
   };
+  if (extras.length === 0) delete updated.images;
 
   catalog[categoryId][varietyId][index] = updated;
   await writeCatalog(catalog);
 
   /*
-   * Ordering is load-bearing: new file, then JSON, then remove the old file.
+   * Ordering is load-bearing: new files, then JSON, then remove the old ones.
    *
-   * Any interruption then leaves `catalog.json` pointing at a file that exists.
+   * Any interruption then leaves `catalog.json` pointing at files that exist.
    * Deleting first would open a window where a crash strands an entry whose image
    * is gone, which makes `assertCatalogResolves` throw on every page load — the app
    * would not boot, and the only way back is editing JSON by hand.
    */
-  if (superseded) await unlinkIfPresent(resolveImagePath(categoryId, superseded));
+  const kept = new Set(filenames);
+  for (const superseded of existingFilenames) {
+    if (!kept.has(superseded)) await unlinkIfPresent(resolveImagePath(categoryId, superseded));
+  }
 
   return updated;
 };
@@ -445,7 +545,9 @@ const deleteProduct = async (sku: string): Promise<void> => {
   // Metadata first, for the same reason as the update above: an orphaned image is
   // harmless clutter, whereas an orphaned *entry* whose image is gone makes the
   // dev-time assertion throw on every page load.
-  await unlinkIfPresent(resolveImagePath(categoryId, removed.image));
+  for (const filename of [removed.image, ...(removed.images ?? [])]) {
+    await unlinkIfPresent(resolveImagePath(categoryId, filename));
+  }
 };
 
 /* ------------------------------------------------------------------ *

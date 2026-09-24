@@ -38,12 +38,23 @@ export interface StoredProduct {
   /** Scent notes, rendered as chips, e.g. `['Vanilla', 'Cedarwood']`. */
   fragrance: string[];
   /**
-   * Image **filename only**, e.g. `amber-glow.jpg`.
+   * Cover image, **filename only**, e.g. `amber-glow.jpg`.
    *
    * The directory is derived as `catalog-images/<categoryId>/` from the key this
    * record sits under, for the same reason `categoryId` is not a field here.
    */
   image: string;
+  /**
+   * Further shots of the same candle, filenames only, in display order.
+   *
+   * A separate optional field rather than folding the cover into one `images` array.
+   * The cover is not interchangeable with the rest — it is the only image a grid tile
+   * shows — so a shape where it is merely "element zero" turns losing it into an
+   * off-by-one instead of a type error. Optional also means the records written
+   * before multi-image existed are still valid, so nothing had to be hand-migrated in
+   * a file the hard rules say is machine-written.
+   */
+  images?: string[];
 }
 
 /**
@@ -71,7 +82,7 @@ export interface CatalogProduct extends StoredProduct {
   /** Owning variety id, from the map key. */
   varietyId: string;
   /**
-   * Build-time-resolved, content-hashed URL from `catalogImages`.
+   * Build-time-resolved, content-hashed URL for {@link StoredProduct.image}.
    *
    * Never a `/catalog/...` string path: the site deploys under a base prefix
    * (`/lumora_flames/`, and `/lumora_flames/pr-N/` for previews), so a
@@ -79,4 +90,12 @@ export interface CatalogProduct extends StoredProduct {
    * while working perfectly in dev.
    */
   imageUrl: string;
+  /**
+   * Every resolved URL for this candle, cover first — the gallery's source.
+   *
+   * Always at least one entry, so a consumer needs no empty-array branch.
+   * {@link imageUrl} stays as its own field because a grid tile wants the cover
+   * specifically and `imageUrls[0]` would be it only by convention.
+   */
+  imageUrls: string[];
 }
