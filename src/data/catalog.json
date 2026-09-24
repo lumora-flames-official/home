@@ -40,7 +40,8 @@
         "name": "Spark & Spritz: Orange Fizz",
         "priceInr": 999,
         "fragrance": ["Fresh Orange Zest", "Blood Orange", "Sparkling Soda Fizz"],
-        "image": "spark-spritz-orange-fizz.jpg"
+        "image": "spark-spritz-orange-fizz.jpg",
+        "images": ["spark-spritz-orange-fizz-2.jpg"]
       }
     ]
   }

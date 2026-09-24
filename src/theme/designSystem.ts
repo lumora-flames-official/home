@@ -34,6 +34,7 @@ export const DESIGN_TOKENS = {
     eyebrow: 'text-xs font-semibold tracking-[0.2em] uppercase text-amber-500',
     /** Uppercase label for buttons and pills. Never sentence-case. */
     button: 'text-xs font-semibold uppercase tracking-wider',
+    buttonxxs: 'text-[0.625rem] font-semibold uppercase tracking-wider',
   },
   glass: {
     card: 'bg-white/70 dark:bg-stone-900/40 backdrop-blur-2xl border border-stone-200/80 dark:border-stone-800/80 shadow-2xl',

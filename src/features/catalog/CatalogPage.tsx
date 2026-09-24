@@ -15,6 +15,7 @@ import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { VarietyCatalog } from '../categories/VarietyCatalog';
 import { CatalogSidebar } from './CatalogSidebar';
 import { CatalogToolbar, type CatalogTab } from './CatalogToolbar';
+import { ProductDialog } from './ProductDialog';
 import { useTabOverscroll } from './useTabOverscroll';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -23,11 +24,11 @@ gsap.registerPlugin(ScrollTrigger);
  * Clearance below the fixed chrome, used until the real measurement lands.
  *
  * Only ever visible for the first painted frame, and that frame is at opacity 0 under
- * `PageTransition`'s entrance. Sized for the *deepest* case — the mobile bar, whose
- * two-row tab grid puts its bottom edge at ~271px against desktop's ~163px — so that
- * being wrong leaves a gap rather than putting content underneath the bar.
+ * `PageTransition`'s entrance. Sized for the *deepest* case — the sub-`lg` bar, whose
+ * pill rail puts its bottom edge at ~188px against desktop's ~163px — so that being
+ * wrong leaves a gap rather than putting content underneath the bar.
  */
-const CHROME_FALLBACK = '17rem';
+const CHROME_FALLBACK = '12rem';
 
 /**
  * Frames a newly opened collection holds its landing position, ~300ms at 60Hz.
@@ -154,6 +155,16 @@ export const CatalogPage: React.FC = () => {
   const [activeVarietyKey, setActiveVarietyKey] = useState<string | null>(null);
 
   /**
+   * Candle whose detail dialog is open, or `null`.
+   *
+   * Held by the page rather than by each tile so one `<dialog>` element serves the
+   * whole grid. A dialog per card would mount dozens of modals, all closed, and make
+   * "is anything open" a question with no single answer — which the over-scroll pager
+   * below has to be able to ask.
+   */
+  const [openProduct, setOpenProduct] = useState<CatalogProduct | null>(null);
+
+  /**
    * Mirror of {@link activeVarietyKey} for reading inside ScrollTrigger callbacks,
    * which close over the render that created them and would otherwise compare against
    * a stale value.
@@ -241,7 +252,11 @@ export const CatalogPage: React.FC = () => {
   useTabOverscroll({
     // Nothing to page to means nothing to listen for — a one-result search should not
     // leave the window subscribed to every wheel event.
-    enabled: previousCollection !== null || nextCollection !== null,
+    //
+    // Also off while the product dialog is open: a wheel gesture over the backdrop
+    // would otherwise change the collection behind it, so the reader would dismiss the
+    // dialog and find themselves somewhere else.
+    enabled: (previousCollection !== null || nextCollection !== null) && openProduct === null,
     onNext: () => nextCollection && openCollection(nextCollection.categoryId, 'top'),
     onPrevious: () => previousCollection && openCollection(previousCollection.categoryId, 'bottom'),
   });
@@ -454,6 +469,22 @@ export const CatalogPage: React.FC = () => {
     0
   );
 
+  /*
+   * Display titles for the open candle, resolved from its own `categoryId` and
+   * `varietyId` rather than captured when the tile was clicked.
+   *
+   * The enquiry message is built from these, so they have to be right: deriving them
+   * from the product means there is one definition of where it sits — the ids — and no
+   * way for a stale copy to name the wrong collection. A product that resolves to no
+   * group leaves the dialog closed instead of sending a WhatsApp message with a blank
+   * collection name, which would reach the studio looking like a real enquiry.
+   */
+  const openGroup = openProduct
+    ? allCollections
+        .find((collection) => collection.categoryId === openProduct.categoryId)
+        ?.groups.find((group) => group.varietyId === openProduct.varietyId)
+    : undefined;
+
   const commissionCta = (
     <Link
       to="/contact"
@@ -602,14 +633,10 @@ export const CatalogPage: React.FC = () => {
                   style={{ scrollMarginTop: 'calc(var(--catalog-chrome) + 1.5rem)' }}
                 >
                   <VarietyCatalog
-                    layout="grid"
                     products={group.products}
                     heading={group.varietyName}
                     headingId={`${domIdForKey(groupKey(group))}-heading`}
-                    context={{
-                      categoryTitle: group.categoryTitle,
-                      varietyName: group.varietyName,
-                    }}
+                    onOpenProduct={setOpenProduct}
                   />
                 </section>
               ))
@@ -675,6 +702,16 @@ export const CatalogPage: React.FC = () => {
         <Send className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         Commission a candle
       </Link>
+
+      {/* One dialog for the whole grid; the open candle is page state. */}
+      <ProductDialog
+        product={openGroup ? openProduct : null}
+        context={{
+          categoryTitle: openGroup?.categoryTitle ?? '',
+          varietyName: openGroup?.varietyName ?? '',
+        }}
+        onClose={() => setOpenProduct(null)}
+      />
     </div>
   );
 };

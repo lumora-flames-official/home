@@ -92,6 +92,10 @@ const toBase64 = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
+/** Encodes the chosen photos into the `images` array the API expects, cover first. */
+const toUploads = (files: File[]): Promise<{ base64: string; filename: string }[]> =>
+  Promise.all(files.map(async (file) => ({ base64: await toBase64(file), filename: file.name })));
+
 /**
  * Splits the fragrance field into stored notes.
  *
@@ -115,8 +119,14 @@ interface FormValues {
   name: string;
   priceInr: number;
   fragrance: string[];
-  /** `null` when no file was chosen — meaning "keep the current photo" on an edit. */
-  file: File | null;
+  /**
+   * Chosen photos in picker order, cover first.
+   *
+   * Empty means "keep the current photos" on an edit. Note that choosing *any* file
+   * replaces the whole gallery rather than appending — the input is a complete
+   * selection, and the API has no per-image operation for the same reason.
+   */
+  files: File[];
   /**
    * Present only in add mode. While editing, the collection and variety render as
    * read-only text with no form control behind them, so there is nothing to read —
@@ -204,7 +214,6 @@ export const UpdateListPanel: React.FC = () => {
   /** Reads the form, whichever mode it is in. */
   const readForm = (form: HTMLFormElement): FormValues => {
     const data = new FormData(form);
-    const file = data.get('image');
 
     const readOptional = (field: string): string | null => {
       const value = data.get(field);
@@ -215,7 +224,11 @@ export const UpdateListPanel: React.FC = () => {
       name: String(data.get('name') ?? '').trim(),
       priceInr: Number(data.get('priceInr')),
       fragrance: parseFragrance(String(data.get('fragrance') ?? '')),
-      file: file instanceof File && file.size > 0 ? file : null,
+      // `getAll`, because the input is `multiple`. A zero-byte entry is what an
+      // untouched file input contributes, so it is filtered rather than uploaded.
+      files: data
+        .getAll('images')
+        .filter((entry): entry is File => entry instanceof File && entry.size > 0),
       categoryId: readOptional('categoryId'),
       varietyId: readOptional('varietyId'),
     };
@@ -235,11 +248,9 @@ export const UpdateListPanel: React.FC = () => {
             name: values.name,
             priceInr: values.priceInr,
             fragrance: values.fragrance,
-            // Only sent when a new file was chosen; the API leaves the photo alone
-            // when the key is absent, so "no file" means "keep the current one".
-            ...(values.file
-              ? { imageBase64: await toBase64(values.file), imageFilename: values.file.name }
-              : {}),
+            // Only sent when files were chosen; the API leaves the gallery alone when
+            // the key is absent, so "nothing picked" means "keep the current photos".
+            ...(values.files.length > 0 ? { images: await toUploads(values.files) } : {}),
           }),
         });
 
@@ -250,7 +261,7 @@ export const UpdateListPanel: React.FC = () => {
         return `Updated ${target.sku}. Commit to publish.`;
       }
 
-      if (!values.file) throw new Error('Choose an image.');
+      if (values.files.length === 0) throw new Error('Choose at least one photo.');
 
       const response = await fetch('/api/catalog', {
         method: 'POST',
@@ -261,8 +272,7 @@ export const UpdateListPanel: React.FC = () => {
           name: values.name,
           priceInr: values.priceInr,
           fragrance: values.fragrance,
-          imageBase64: await toBase64(values.file),
-          imageFilename: values.file.name,
+          images: await toUploads(values.files),
         }),
       });
 
@@ -510,13 +520,14 @@ export const UpdateListPanel: React.FC = () => {
           </label>
 
           <label className={labelClasses}>
-            <span>{editing ? 'Replace photo' : 'Photo'}</span>
+            <span>{editing ? 'Replace photos' : 'Photos'}</span>
             <input
-              name="image"
+              name="images"
               type="file"
+              multiple
               accept=".jpg,.jpeg,.png,.webp,.avif"
               // Required only when creating: an edit that leaves this empty keeps
-              // the existing photo.
+              // the existing gallery.
               required={!editing}
               className={cn(
                 fieldClasses,
@@ -525,12 +536,25 @@ export const UpdateListPanel: React.FC = () => {
             />
           </label>
 
-          {editing && (
-            <p className="self-end text-xs font-light normal-case tracking-normal text-stone-500 dark:text-stone-400">
-              Currently <span className="font-normal">{editing.image}</span>. Leave empty to keep
-              it.
-            </p>
-          )}
+          <p className="self-end text-xs font-light normal-case tracking-normal text-stone-500 dark:text-stone-400">
+            {editing ? (
+              <>
+                Currently{' '}
+                <span className="font-normal">
+                  {[editing.image, ...(editing.images ?? [])].join(', ')}
+                </span>
+                . Leave empty to keep them — choosing files replaces the whole set.
+              </>
+            ) : (
+              /* No count stated here on purpose: the ceiling lives in the API, which
+                 rejects an oversized set with a message this panel already surfaces.
+                 Repeating the number would be a second definition of it. */
+              <>
+                First file is the cover shown on the catalog tile; the rest appear in the product
+                dialog.
+              </>
+            )}
+          </p>
 
           <div className="sm:col-span-2">
             <button
