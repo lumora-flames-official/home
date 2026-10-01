@@ -9,10 +9,36 @@ import { buildVarietyHash, parseCollectionHash, type VarietyTarget } from '../..
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { DURATION, EASE, settleInstantly } from '../../lib/animations';
+import { EmberField } from '../../components/ui/EmberField';
 import { CollectionTabs } from './CollectionTabs';
 import { VarietyStage } from './VarietyStage';
 
 gsap.registerPlugin(ScrollTrigger);
+
+/**
+ * Where each collection's light pool sits, as a fraction of the block.
+ *
+ * These replaced the six hero photographs. That was not a styling preference: the photos
+ * were 11.39 MB of this route's 11.55 MB and 28.3 MB of decoded bitmap, which is the
+ * single largest cost the site had, and they were only ever a dimmed backdrop behind
+ * text. A gradient is a few bytes, has no resolution to run out of — so it cannot look
+ * soft on a retina display the way a downscaled photograph can — and costs nothing to
+ * decode on a low-memory device.
+ *
+ * Six positions rather than one, for the same reason `ENTRANCES` has six members: the
+ * house rule is that no two collections announce themselves identically. Each is used as
+ * a **square** element centred on the point, which is what
+ * `DESIGN_TOKENS.overlay.scrimRadial` requires to fall off evenly instead of reading as
+ * a soft-cornered box — see that token's own JSDoc.
+ */
+const LIGHT_POOLS = [
+  'left-[18%] top-[32%]',
+  'left-[78%] top-[26%]',
+  'left-[50%] top-[64%]',
+  'left-[24%] top-[72%]',
+  'left-[72%] top-[68%]',
+  'left-[50%] top-[24%]',
+];
 
 /**
  * Entrance assigned to each collection, by position.
@@ -39,11 +65,24 @@ const playEntrance = (entrance: CollectionEntrance, frame: HTMLElement): void =>
 
   switch (entrance) {
     case 'clip':
-      gsap.fromTo(
-        frame,
-        { clipPath: 'polygon(0 0, 0 0, 0 100%, 0 100%)', opacity: 0 },
-        { clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)', opacity: 1, ...base }
-      );
+      /*
+       * A `scaleX` wipe, not a `clipPath` one.
+       *
+       * The original animated `clipPath: polygon(...)`, which reads identically and is
+       * the one genuinely expensive tween on this page: `clipPath` is not a compositor
+       * property, so every frame of it repaints the whole block. `scaleX` with a left
+       * origin is handled on the GPU. The inner counter-scale keeps the text from
+       * stretching, which is the only reason `clipPath` looked like the easier option.
+       */
+      gsap
+        .timeline(base)
+        .fromTo(
+          frame,
+          { scaleX: 0, transformOrigin: 'left center', opacity: 0 },
+          { scaleX: 1, opacity: 1, ...base },
+          0
+        )
+        .fromTo(frame.children, { scaleX: 1.6 }, { scaleX: 1, ...base }, 0);
       break;
     case 'parallax':
       gsap.fromTo(frame, { y: 110, opacity: 0 }, { y: 0, opacity: 1, ...base });
@@ -207,7 +246,6 @@ export const CollectionsJourney: React.FC = () => {
       const triggers = CANDLE_CATEGORIES.map((category, categoryIndex) => {
         const block = blockRefs.current[categoryIndex];
         const frame = frameRefs.current[categoryIndex];
-        const photo = block?.querySelector('.collection-photo');
         const total = category.subCategories.length;
 
         const timeline = gsap.timeline({
@@ -244,10 +282,12 @@ export const CollectionsJourney: React.FC = () => {
           },
         });
 
-        // Slow push on the photograph across the whole collection, under everything
-        // else. Transform only — scrubbing a layout property would reflow per frame.
-        if (photo) timeline.to(photo, { scale: 1.16, yPercent: 5, ease: EASE.scrub }, 0);
-
+        /*
+         * The slow push that used to scrub the photograph's `scale`/`yPercent` is gone
+         * with the photograph. The timeline is kept because `scrollTrigger` is what the
+         * pin, the bounds and the variety stepping all hang off — it drives state, not
+         * just motion, so an empty timeline here is correct rather than dead.
+         */
         return timeline.scrollTrigger;
       });
 
@@ -447,18 +487,24 @@ export const CollectionsJourney: React.FC = () => {
               prefersReducedMotion ? 'py-24' : 'h-screen'
             )}
           >
-            {/* Photograph + scrims. One per collection, held still by the pin. */}
-            <div className="absolute inset-0 z-0 overflow-hidden">
-              <img
-                src={category.heroImage}
-                alt={`${category.title} — ${category.tagline}`}
-                /* Only the first collection is above the fold. */
-                loading={categoryIndex === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-                className="collection-photo h-full w-full object-cover brightness-[0.55] dark:brightness-[0.4]"
+            {/*
+              Lit, not photographed. The page's own surface shows through — `App`'s
+              `AmbientFlameGlow` sits behind this — and each collection adds its own
+              amber pool and embers so arriving somewhere new still feels like it.
+
+              `aria-hidden`, because none of it carries meaning. The photograph it
+              replaced had `alt` text; a gradient has nothing to describe.
+            */}
+            <div aria-hidden="true" className="absolute inset-0 z-0 overflow-hidden">
+              <div
+                className={cn(
+                  // Square and centred on its point, which is what `scrimRadial` needs.
+                  'absolute h-[70vmax] w-[70vmax] -translate-x-1/2 -translate-y-1/2',
+                  LIGHT_POOLS[categoryIndex % LIGHT_POOLS.length],
+                  DESIGN_TOKENS.overlay.scrimRadial
+                )}
               />
-              <div className={cn('absolute inset-0', DESIGN_TOKENS.overlay.scrimSide)} />
-              <div className={cn('absolute inset-0', DESIGN_TOKENS.overlay.scrimBottom)} />
+              <EmberField />
             </div>
 
             {/* Screen-reader anchor for the collection. The visible collection name is
@@ -532,15 +578,14 @@ export const CollectionsJourney: React.FC = () => {
                       <span
                         className={cn(
                           'h-1.5 rounded-full transition-all duration-500',
-                          // Fixed dark surface, so no `dark:` variants.
                           index === activeIndex
                             ? 'w-12 bg-amber-500'
-                            : 'w-5 bg-white/40 group-hover:bg-amber-400/70'
+                            : 'w-5 bg-stone-300 group-hover:bg-amber-500/70 dark:bg-white/30 dark:group-hover:bg-amber-400/70'
                         )}
                       />
                     </button>
                   ))}
-                  <span className="ml-3 text-xs font-light tabular-nums text-stone-300">
+                  <span className="ml-3 text-xs font-light tabular-nums text-stone-500 dark:text-stone-400">
                     {String(activeIndex + 1).padStart(2, '0')} /{' '}
                     {String(varieties.length).padStart(2, '0')}
                   </span>

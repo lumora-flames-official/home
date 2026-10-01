@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Cavemen files
+.clinerules
+.cursor
+.opencode
+.windsurf
+AGENTS.md
+copilot-instructions.md

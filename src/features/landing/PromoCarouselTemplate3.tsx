@@ -7,6 +7,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { EASE, DURATION, settleInstantly } from '../../lib/animations';
+import { ResponsiveImage } from '../../components/ui/ResponsiveImage';
 
 /**
  * Loads and registers Draggable + InertiaPlugin on demand.
@@ -225,13 +226,15 @@ export const PromoCarouselTemplate3: React.FC<PromoCarouselTemplate3Props> = ({
         prefersReducedMotion && 'snap-start'
       )}
     >
-      <img
-        src={slide.image}
-        alt=""
+      {/* `sizes` mirrors the card widths on the class above — 78vw on a phone, then a
+          fixed 22rem/24rem. The biggest win on the page: these cards never exceed 384px,
+          so every one of them drops from the 1344px variant to the 640px one. */}
+      <ResponsiveImage
+        picture={slide.image}
         /* Decorative: the card's own heading and body carry the meaning, so an
            alt here would just be read twice. */
-        loading="lazy"
-        decoding="async"
+        alt=""
+        sizes="(min-width: 1024px) 24rem, (min-width: 640px) 22rem, 78vw"
         className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
       />
 

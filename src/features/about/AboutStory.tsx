@@ -10,6 +10,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { EASE, DURATION, settleInstantly } from '../../lib/animations';
+import { ResponsiveImage } from '../../components/ui/ResponsiveImage';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -188,11 +189,11 @@ export const AboutStory: React.FC = () => {
       {/* Studio portrait */}
       <section className="about-portrait relative overflow-hidden rounded-[2.5rem]">
         <div className="aspect-[4/5] sm:aspect-[16/9]">
-          <img
-            src={ASSET_IMAGES.categories.bespoke}
+          {/* Inside `PageShell`'s gutters, capped by `layout.maxWidth` at 1600px. */}
+          <ResponsiveImage
+            picture={ASSET_IMAGES.categories.bespoke}
             alt="Inside the Lumora Flames studio, where each candle is poured by hand."
-            loading="lazy"
-            decoding="async"
+            sizes="(min-width: 1600px) 1344px, 100vw"
             className="about-portrait-img absolute inset-0 h-[112%] w-full -translate-y-[6%] object-cover"
           />
         </div>

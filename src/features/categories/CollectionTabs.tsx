@@ -51,7 +51,10 @@ export const CollectionTabs: React.FC<CollectionTabsProps> = ({ activeCategoryId
         ref={railRef}
         aria-label="Collections"
         className={cn(
-          'pointer-events-auto flex max-w-full gap-1 overflow-x-auto rounded-full border border-white/15 bg-stone-950/70 p-1.5 backdrop-blur-xl',
+          // Themed, no longer a fixed dark surface. This bar used to float over a dimmed
+          // photograph that was dark in both modes; the journey's backdrop is now the
+          // page's own, so it follows the theme the way `CatalogToolbar` does.
+          'pointer-events-auto flex max-w-full gap-1 overflow-x-auto rounded-full border border-stone-200 bg-stone-50/90 p-1.5 backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/80',
           '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         )}
       >
@@ -66,10 +69,10 @@ export const CollectionTabs: React.FC<CollectionTabsProps> = ({ activeCategoryId
               aria-current={isActive}
               className={cn(
                 'shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-1 focus-visible:ring-offset-stone-950',
-                // Fixed dark surface in both themes, so no `dark:` variants — the bar
-                // sits over photography, which is dark whatever the page theme is.
-                isActive ? 'bg-amber-500 text-stone-950' : 'text-stone-300 hover:text-white'
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
+                isActive
+                  ? 'bg-amber-500 text-stone-950'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
               )}
             >
               {/* The number alone below `sm`: six full titles cannot fit a phone, and a

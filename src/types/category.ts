@@ -1,3 +1,5 @@
+import type { ResponsivePicture } from './image';
+
 /**
  * Silhouette the procedural candle renders for a subcategory.
  *
@@ -45,5 +47,13 @@ export interface Category {
   tagline: string;
   description: string;
   subCategories: SubCategory[];
-  heroImage: string;
+  /**
+   * Responsive picture data from `src/data/assets.ts`, rendered via `ResponsiveImage`.
+   *
+   * Not a URL string, which is what it was until the photography was measured at 15.9 MB
+   * for one scroll of the home page. A single `src` can only ever carry one width, and a
+   * 390px phone should not download a 1344px file — nor hold its bitmap in memory, which
+   * costs `w × h × 4` bytes whatever the codec.
+   */
+  heroImage: ResponsivePicture;
 }
