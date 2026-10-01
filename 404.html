@@ -13,6 +13,15 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/home/apple-touch-icon.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!--
+      The conversion path ends at wa.me — every "Commission" button opens WhatsApp.
+      `preconnect` starts the TCP+TLS handshake early so the first tap opens
+      WhatsApp without a perceptible pause. `dns-prefetch` is the fallback for
+      browsers that don't support preconnect; both cost zero bytes of payload.
+    -->
+    <link rel="preconnect" href="https://wa.me" />
+    <link rel="dns-prefetch" href="https://wa.me" />
+
     <title>Lumora Flames — Handcrafted Artisanal Candles</title>
     <meta
       name="description"
@@ -49,9 +58,9 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="A hand-poured Lumora Flames candle, lit." />
     <meta name="twitter:card" content="summary_large_image" />
-    <script type="module" crossorigin src="/home/assets/index-Br9lPHl1.js"></script>
-    <link rel="stylesheet" crossorigin href="/home/assets/index-CX6Mg-V1.css">
-  </head>
+    <script type="module" crossorigin src="/home/assets/index-Do1VN5rL.js"></script>
+    <link rel="stylesheet" crossorigin href="/home/assets/index--Pmfd2UC.css">
+  <link rel="manifest" href="/home/manifest.webmanifest"></head>
   <body>
     <div id="root"></div>
   </body>
