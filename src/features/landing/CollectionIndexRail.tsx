@@ -8,6 +8,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { EASE, DURATION, settleInstantly } from '../../lib/animations';
+import { ResponsiveImage } from '../../components/ui/ResponsiveImage';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -175,13 +176,17 @@ export const CollectionIndexRail: React.FC<CollectionIndexRailProps> = ({
           >
             <div className="relative aspect-[4/5]">
               {preview && (
-                <img
+                /* Five of twelve grid columns, and only from `lg` up — so at most
+                   ~40vw, capped where `layout.maxWidth` stops the container growing.
+                   This is the call site that most needed a real `sizes`: without one
+                   the browser assumes `100vw` and fetches the 1344px variant for a
+                   frame that is never wider than about 620px. */
+                <ResponsiveImage
                   ref={previewRef}
                   key={preview.id}
-                  src={preview.heroImage}
+                  picture={preview.heroImage}
                   alt=""
-                  loading="lazy"
-                  decoding="async"
+                  sizes="(min-width: 1600px) 620px, 40vw"
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               )}

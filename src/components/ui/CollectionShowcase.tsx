@@ -8,6 +8,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { EASE, DURATION, settleInstantly } from '../../lib/animations';
+import { ResponsiveImage } from './ResponsiveImage';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -77,6 +78,16 @@ export const CollectionShowcase: React.FC<CollectionShowcaseProps> = ({
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  /**
+   * The photograph's frame — the clipped, rounded box, not the image inside it.
+   *
+   * Held as its own ref rather than reached via `imageRef.current.parentElement`, which
+   * is what the wipe and scale tweens below used to do. That worked only while the image
+   * was a bare `<img>`; `ResponsiveImage` wraps it in a `<picture>`, so the parent became
+   * an `inline` element with no box, and both entrances silently animated nothing
+   * visible. An explicit ref cannot be invalidated by a change in markup depth.
+   */
+  const frameRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
   useGSAP(
@@ -114,7 +125,7 @@ export const CollectionShowcase: React.FC<CollectionShowcaseProps> = ({
         // Copy wipes from one edge while the frame wipes from the opposite —
         // two crossing axes read as deliberate editorial design.
         tl.fromTo(
-          imageRef.current?.parentElement ?? [],
+          frameRef.current,
           { clipPath: 'polygon(0 0, 100% 0, 100% 0, 0 0)' },
           { clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)', duration: DURATION.slow },
           0
@@ -126,7 +137,7 @@ export const CollectionShowcase: React.FC<CollectionShowcaseProps> = ({
         );
       } else if (variant === 'offsetFrame') {
         tl.fromTo(
-          imageRef.current?.parentElement ?? [],
+          frameRef.current,
           { scale: 0.9, opacity: 0 },
           { scale: 1, opacity: 1, duration: DURATION.slow },
           0
@@ -152,13 +163,15 @@ export const CollectionShowcase: React.FC<CollectionShowcaseProps> = ({
 
   /** Photograph plus its scrim. Shared by every variant. */
   const frame = (
-    <div className={cn('relative overflow-hidden', VARIANT_FRAME[variant])}>
-      <img
+    <div ref={frameRef} className={cn('relative overflow-hidden', VARIANT_FRAME[variant])}>
+      {/* `100vw` at every breakpoint: these frames are full-bleed or nearly so in all
+          three variants, so the rendered width really is the viewport width. */}
+      <ResponsiveImage
         ref={imageRef}
-        src={category.heroImage}
+        picture={category.heroImage}
         alt={`${category.title} — ${category.tagline}`}
-        loading={eager ? 'eager' : 'lazy'}
-        decoding="async"
+        sizes="100vw"
+        eager={eager}
         /* Oversized so the parallax drift never exposes an edge. */
         className="absolute inset-0 h-[118%] w-full -translate-y-[8%] object-cover"
       />

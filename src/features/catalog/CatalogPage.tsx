@@ -637,6 +637,10 @@ export const CatalogPage: React.FC = () => {
                     heading={group.varietyName}
                     headingId={`${domIdForKey(groupKey(group))}-heading`}
                     onOpenProduct={setOpenProduct}
+                    context={{
+                      categoryTitle: group.categoryTitle,
+                      varietyName: group.varietyName,
+                    }}
                   />
                 </section>
               ))

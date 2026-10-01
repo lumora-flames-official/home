@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 import type { CatalogProduct } from '../../types/catalog';
+import { resolveProductAction } from '../../lib/productActions';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { DURATION, EASE, STAGGER, settleInstantly } from '../../lib/animations';
 import { ProductCard } from './ProductCard';
@@ -27,6 +28,14 @@ export interface VarietyCatalogProps {
   headingId: string;
   /** Opens a candle's detail dialog. Owned by the page, so one dialog serves all. */
   onOpenProduct: (product: CatalogProduct) => void;
+  /**
+   * Display titles used in the quick-commission WhatsApp message on each tile.
+   *
+   * These are the human-readable collection and variety names, not ids.
+   * The page always has them; threading them here avoids importing `CANDLE_CATEGORIES`
+   * into a presentational component just to do a lookup.
+   */
+  context: { categoryTitle: string; varietyName: string };
 }
 
 /**
@@ -52,6 +61,7 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
   heading,
   headingId,
   onOpenProduct,
+  context,
 }) => {
   const sectionRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -114,15 +124,20 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
         ref={gridRef}
         className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4 2xl:grid-cols-5"
       >
-        {products.map((product, index) => (
-          <ProductCard
-            key={product.sku}
-            product={product}
-            onOpen={onOpenProduct}
-            // Roughly a first row, whatever the breakpoint; the rest are below the fold.
-            eager={index < 4}
-          />
-        ))}
+        {products.map((product, index) => {
+          const intent = resolveProductAction(product, 'inquire', context);
+          const commissionHref = intent.kind === 'link' ? intent.href : '#';
+          return (
+            <ProductCard
+              key={product.sku}
+              product={product}
+              onOpen={onOpenProduct}
+              commissionHref={commissionHref}
+              // Roughly a first row, whatever the breakpoint; the rest are below the fold.
+              eager={index < 4}
+            />
+          );
+        })}
       </div>
     </section>
   );

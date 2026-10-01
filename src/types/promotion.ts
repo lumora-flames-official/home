@@ -1,3 +1,5 @@
+import type { ResponsivePicture } from './image';
+
 /**
  * Slide contracts for the three promotional placements on the home page.
  *
@@ -40,8 +42,12 @@ export interface PromoSlide extends PromotionBase {
   highlightText: string;
   /** One or two sentences of supporting copy. */
   description: string;
-  /** Imported image module from `data/assets.ts` — never a raw `src/...` path. */
-  bgImage: string;
+  /**
+   * Responsive picture data from `data/assets.ts` — never a raw `src/...` path, and no
+   * longer a plain URL either. Rendered through `ResponsiveImage`, which needs the
+   * several widths a single `src` cannot carry.
+   */
+  bgImage: ResponsivePicture;
   /** CTA label. */
   ctaText: string;
 }
@@ -80,6 +86,6 @@ export interface GiftingSlide extends PromotionBase {
   title: string;
   /** One line of supporting copy. */
   body: string;
-  /** Imported image module from `data/assets.ts`. */
-  image: string;
+  /** Responsive picture data from `data/assets.ts`, rendered via `ResponsiveImage`. */
+  image: ResponsivePicture;
 }

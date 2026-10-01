@@ -12,17 +12,17 @@
 import flameMark from './images/logo/flame-mark.svg';
 
 // Collection hero imagery
-import bespoke from './images/collections-landing/bespoke.png';
-import jarCandles from './images/collections-landing/jarCandles.jpeg';
-import sculptural from './images/collections-landing/Sculptural_Decorative.png';
-import traditional from './images/collections-landing/Traditional_Festive.png';
-import specialtyWax from './images/collections-landing/Speciality_Candles.png';
-import rawMaterial from './images/collections-landing/rawMaterial.png';
+import bespoke from './images/collections-landing/bespoke.webp?w=640;1024;1344&as=picture';
+import jarCandles from './images/collections-landing/jarCandles.webp?w=640;1024;1344&as=picture';
+import sculptural from './images/collections-landing/Sculptural_Decorative.webp?w=640;1024;1344&as=picture';
+import traditional from './images/collections-landing/Traditional_Festive.webp?w=640;1024;1344&as=picture';
+import specialtyWax from './images/collections-landing/Speciality_Candles.webp?w=640;1024;1344&as=picture';
+import rawMaterial from './images/collections-landing/rawMaterial.webp?w=640;1024;1344&as=picture';
 
 // Promotional carousel imagery
-import beveragesCocktails from './images/deserts_beverages/Beverages_cocktails.png';
-import desserts from './images/deserts_beverages/desserts.png';
-import smoothie from './images/deserts_beverages/Smoothie.png';
+import beveragesCocktails from './images/deserts_beverages/Beverages_cocktails.webp?w=640;1024;1344&as=picture';
+import desserts from './images/deserts_beverages/desserts.webp?w=640;1024;1344&as=picture';
+import smoothie from './images/deserts_beverages/Smoothie.webp?w=640;1024;1344&as=picture';
 
 export const ASSET_IMAGES = {
   brand: {

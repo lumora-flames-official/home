@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
+import sharp from 'sharp';
 
 /**
  * Dev-server API behind the local-only CMS at `/update-list`.
@@ -35,14 +36,35 @@ const CATALOG_FILE = path.join(ROOT, 'src', 'data', 'catalog.json');
 const IMAGES_ROOT = path.join(ROOT, 'src', 'data', 'catalog-images');
 
 /**
- * Extensions accepted for upload.
+ * Extensions accepted **as input**.
  *
- * Must stay in step with the glob pattern in `src/data/catalogImages.ts`: a file
- * written here with an extension that glob does not match is invisible to the
- * site, and `assertCatalogResolves` would then throw on a product whose image is
- * sitting right there on disk.
+ * Everything is re-encoded to WebP before it touches disk (see {@link decodeUploads}), so
+ * this no longer decides what the stored filename looks like — it only rejects a file
+ * `sharp` would fail on anyway, with a message that names the supported formats instead
+ * of surfacing a decoder error.
+ *
+ * The glob in `src/data/catalogImages.ts` must still match `.webp`, and still lists the
+ * others because files predating this conversion are on disk.
  */
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
+
+/**
+ * Quality for stored photos. Matches `scripts/convertImages.mjs`, deliberately: the two
+ * write into the same directory and a visible quality seam between the studio's uploads
+ * and the original photography would be worse than either setting alone.
+ */
+const WEBP_QUALITY = 82;
+
+/**
+ * Longest edge kept, in pixels.
+ *
+ * A phone camera hands over 4000+ px. The largest a catalog photo is ever displayed is
+ * the product dialog's gallery frame at roughly 480 px, so anything beyond this is paid
+ * for twice — once in bytes and again in decoded bitmap, which costs `w × h × 4` of RAM
+ * regardless of how well the file compressed. 1600 leaves room for a 2× retina crop and
+ * for reframing later.
+ */
+const MAX_IMAGE_EDGE = 1600;
 
 /**
  * 60 MB. Source photography is 2–3 MB and base64 inflates by a third, so a full
@@ -297,18 +319,28 @@ const pickImageFilename = (
 };
 
 /**
- * Decodes the uploaded photos and validates their extensions.
+ * Decodes the uploaded photos, re-encodes each to WebP, and caps its dimensions.
  *
- * Expects `images: [{ base64, filename }]`, cover first. One array rather than a
- * cover field plus an extras field: the panel's file input hands over the whole
- * selection at once, so a split here would only exist to be reassembled.
+ * Expects `images: [{ base64, filename }]`, cover first. One array rather than a cover
+ * field plus an extras field: the panel's file input hands over the whole selection at
+ * once, so a split here would only exist to be reassembled.
  *
- * @returns The decoded files in order, or `null` when the key is absent — which an
- *   update reads as "leave the photos alone".
+ * ## Why conversion happens here rather than at build time
+ *
+ * Because it must never ship. The plugin declares `apply: 'serve'`, so Vite does not
+ * instantiate it for `vite build` at all — `sharp` and this code are structurally
+ * incapable of reaching a published artifact, which is the same boundary the write API
+ * itself relies on. Doing it here also means the studio never learns the word "WebP":
+ * they pick a 3 MB photo from a phone and ~150 KB lands in the repository.
+ *
+ * `sharp` is already present as a dependency of `vite-imagetools`, so this costs nothing.
+ *
+ * @returns The processed files in order, every one `.webp`, or `null` when the key is
+ *   absent — which an update reads as "leave the photos alone".
  */
-const decodeUploads = (
+const decodeUploads = async (
   body: Record<string, unknown>
-): { bytes: Buffer; extension: string }[] | null => {
+): Promise<{ bytes: Buffer; extension: string }[] | null> => {
   if (body.images === undefined) return null;
 
   if (!Array.isArray(body.images) || body.images.length === 0) {
@@ -318,23 +350,53 @@ const decodeUploads = (
     throw new RequestError(400, `At most ${MAX_IMAGES} photos per product.`);
   }
 
-  return body.images.map((entry, index) => {
-    const upload = (entry ?? {}) as Record<string, unknown>;
-    const base64 = requireString(upload, 'base64');
-    const extension = path.extname(requireString(upload, 'filename')).toLowerCase();
+  return Promise.all(
+    body.images.map(async (entry, index) => {
+      const upload = (entry ?? {}) as Record<string, unknown>;
+      const base64 = requireString(upload, 'base64');
+      const extension = path.extname(requireString(upload, 'filename')).toLowerCase();
 
-    if (!ALLOWED_EXTENSIONS.has(extension)) {
-      throw new RequestError(
-        400,
-        `"${extension}" images aren't supported. Use one of: ${[...ALLOWED_EXTENSIONS].join(', ')}.`
-      );
-    }
+      if (!ALLOWED_EXTENSIONS.has(extension)) {
+        throw new RequestError(
+          400,
+          `"${extension}" images aren't supported. Use one of: ${[...ALLOWED_EXTENSIONS].join(', ')}.`
+        );
+      }
 
-    const bytes = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-    if (bytes.length === 0) throw new RequestError(400, `Photo ${index + 1} decoded to nothing.`);
+      const raw = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+      if (raw.length === 0) throw new RequestError(400, `Photo ${index + 1} decoded to nothing.`);
 
-    return { bytes, extension };
-  });
+      try {
+        const bytes = await sharp(raw)
+          /*
+           * `rotate()` with no argument applies the EXIF orientation tag. It is not
+           * optional: phones record portrait shots as landscape pixels plus a rotation
+           * flag, and re-encoding drops metadata — so without this a photo that looked
+           * upright in the picker would be stored on its side, silently.
+           */
+          .rotate()
+          // `inside` + `withoutEnlargement` shrinks a large photo to fit and leaves a
+          // small one alone, so a modest image is never upscaled into a bigger file.
+          .resize({
+            width: MAX_IMAGE_EDGE,
+            height: MAX_IMAGE_EDGE,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .webp({ quality: WEBP_QUALITY })
+          .toBuffer();
+
+        // Always `.webp`, whatever arrived — `pickImageFilename` builds the stored name
+        // from this, so the extension and the encoding cannot drift apart.
+        return { bytes, extension: '.webp' };
+      } catch (error) {
+        throw new RequestError(
+          400,
+          `Photo ${index + 1} could not be read as an image: ${(error as Error).message}`
+        );
+      }
+    })
+  );
 };
 
 /**
@@ -405,7 +467,7 @@ const createProduct = async (
     throw new RequestError(400, `Collection "${categoryId}" has no variety "${varietyId}".`);
   }
 
-  const uploads = decodeUploads(body);
+  const uploads = await decodeUploads(body);
   if (!uploads) throw new RequestError(400, 'At least one photo is required.');
 
   const catalog = await readCatalog();
@@ -484,7 +546,7 @@ const updateProduct = async (
 
   const name = body.name === undefined ? existing.name : requireString(body, 'name');
 
-  const uploads = decodeUploads(body);
+  const uploads = await decodeUploads(body);
   let filenames = existingFilenames;
 
   if (uploads) {

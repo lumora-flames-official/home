@@ -1,5 +1,5 @@
 import React from 'react';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, Send } from 'lucide-react';
 import type { CatalogProduct } from '../../types/catalog';
 import { formatPrice } from '../../lib/formatPrice';
 import { cn } from '../../lib/utils';
@@ -11,6 +11,13 @@ export interface ProductCardProps {
   product: CatalogProduct;
   /** Opens the detail dialog for this candle. */
   onOpen: (product: CatalogProduct) => void;
+  /**
+   * Pre-built WhatsApp `href` for the quick-commission button on the tile.
+   *
+   * Built by the caller (VarietyCatalog) which has the context titles. Passed as a
+   * finished URL so the card stays presentational and doesn't import contact helpers.
+   */
+  commissionHref: string;
   /**
    * Whether the image should load eagerly. Pass `true` only for the first row of a
    * grid — everything below the fold competes with it for bandwidth on first paint.
@@ -45,7 +52,12 @@ export interface ProductCardProps {
  * purchasable candle is a different kind of content: it has a price and a product
  * code, and a shopper comparing three of them needs them adjacent and uniform.
  */
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpen, eager = false }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({
+  product,
+  onOpen,
+  commissionHref,
+  eager = false,
+}) => {
   const extraShots = product.imageUrls.length - 1;
 
   return (
@@ -87,9 +99,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpen, eager
         <h4 className="line-clamp-2 text-sm font-light leading-snug tracking-tight">
           {product.name}
         </h4>
-        <span className="mt-auto text-base font-light tabular-nums">
-          {formatPrice(product.priceInr)}
-        </span>
+
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <span className="text-base font-light tabular-nums">{formatPrice(product.priceInr)}</span>
+
+          {/*
+            A real anchor, not a button, because this leaves the site for WhatsApp.
+            `stopPropagation` keeps the parent button from also opening the dialog.
+            `e.nativeEvent.stopImmediatePropagation` is not needed — React's synthetic
+            event system is already stopped by `stopPropagation`.
+          */}
+          <a
+            href={commissionHref}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Commission ${product.name} — opens WhatsApp`}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              'grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-500 text-stone-950 transition-colors hover:bg-amber-400',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950'
+            )}
+          >
+            <Send className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        </div>
       </div>
     </button>
   );

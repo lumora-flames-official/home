@@ -7,6 +7,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { EASE } from '../../lib/animations';
+import { ResponsiveImage } from '../../components/ui/ResponsiveImage';
 
 /** Props for {@link PromotionalCarouselTemplate1}. */
 export interface PromotionalCarouselTemplate1Props {
@@ -147,7 +148,14 @@ export const PromotionalCarouselTemplate1: React.FC<PromotionalCarouselTemplate1
     if (!next) return;
 
     const preloader = new Image();
-    preloader.src = next.bgImage;
+    /*
+     * The plain fallback `src`, not a `srcset`. `Image` can take `srcset` + `sizes`, but
+     * this element is never laid out, so `sizes` has no viewport to resolve against and
+     * the browser would pick a variant on its own terms. Warming the fallback guarantees
+     * *something* is decoded; if the picked variant differs it is a cache miss, not a
+     * broken slide.
+     */
+    preloader.src = next.bgImage.img.src;
   }, [activeIdx, slides, total]);
 
   if (!slide) return null;
@@ -169,15 +177,16 @@ export const PromotionalCarouselTemplate1: React.FC<PromotionalCarouselTemplate1
         'py-10 sm:py-16'
       )}
     >
-      <img
+      {/* Full-bleed within the carousel frame, which spans the page. */}
+      <ResponsiveImage
         key={slide.id}
-        src={slide.bgImage}
+        picture={slide.bgImage}
         alt={`${slide.title} ${slide.highlightText}`}
+        sizes="100vw"
         /* The first slide is near the top of the page, so its paint shouldn't
            wait on the lazy-load heuristic. Later slides mount only once they're
            active, by which point the effect above has already warmed them. */
-        loading={activeIdx === 0 ? 'eager' : 'lazy'}
-        decoding="async"
+        eager={activeIdx === 0}
         className="carousel-bg absolute inset-0 h-full w-full object-cover"
       />
 

@@ -30,28 +30,25 @@ export interface VarietyStageProps {
 }
 
 /**
- * One variety's content, as it appears over its collection's photograph.
+ * One variety's content, as it appears inside its collection's block.
  *
- * Renders the *content layer only*: the photograph belongs to the pinned collection
- * block in `CollectionsJourney`, so it stays put while the varieties cross-fade over
- * it. Giving each variety its own copy of the image would restart the same photograph
- * three times per collection.
+ * Renders the *content layer only*: the lit backdrop belongs to the pinned collection
+ * block in `CollectionsJourney`, so it stays put while the varieties cross-fade over it.
  *
- * ## Colour on a fixed surface
+ * ## Colour here is ordinary now, and that is a change
  *
- * The text here sits on a scrimmed photograph, which is dark in *both* themes, so the
- * copy is white and stone with **no `dark:` counterparts**. That is the documented
- * exception to the every-colour-needs-a-dark-variant rule — a fixed brand surface —
- * and it is called out here so the next reader doesn't "fix" it into unreadability.
+ * This file used to be white-and-stone with **no `dark:` counterparts**, documented as a
+ * "fixed brand surface" exception, because it sat on a photograph that was dark in both
+ * themes. Those photographs are gone — they were 11.39 MB of this route's 11.55 MB — so
+ * the exception went with them, and every colour below now carries its dark-mode pair
+ * like anywhere else in the project. Do not reintroduce a bare `text-white` here: on a
+ * `stone-50` page it is invisible, and that failure is silent.
  *
- * ## Why the candle sits in a glass panel
- *
- * `InteractiveCandleCanvas` styles itself for a light surface in light mode: its wick
- * is `bg-stone-800`, its shadow a dark radial. Dropped straight onto a dark photograph
- * it would be dark-on-dark in light mode and invisible. `DESIGN_TOKENS.glass.card` is
- * light in light mode and dark in dark mode, so the panel gives the canvas the surface
- * it expects in each theme — without forcing a `.dark` class onto a subtree, which
- * would lie to every other component inside it.
+ * The candle also no longer needs the glass panel it used to sit in. That panel existed
+ * only to give `InteractiveCandleCanvas` — whose wick is `bg-stone-800` and whose shadow
+ * is a dark radial — a light surface to stand on while the block behind it was dark. On a
+ * themed background the canvas is already correct in both modes, so what is left is
+ * layout and nothing more.
  */
 export const VarietyStage: React.FC<VarietyStageProps> = ({
   category,
@@ -65,7 +62,12 @@ export const VarietyStage: React.FC<VarietyStageProps> = ({
   return (
     <div className="grid w-full items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
       <div className="space-y-5">
-        <span className="inline-flex flex-wrap items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/20 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-widest text-amber-300 backdrop-blur-md">
+        {/* No `backdrop-blur` any more: there is no photograph behind this to blur, and
+            backdrop filters are the most expensive thing in the stylesheet on a weak GPU. */}
+        {/* `amber-800` and not `amber-700` in light mode: measured against this pill's own
+            `amber-500/15` fill over `stone-50`, 700 gives 4.32:1 — under the 4.5 AA floor
+            for text this size. 800 clears it at ~6:1. */}
+        <span className="inline-flex flex-wrap items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/15 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-widest text-amber-800 dark:text-amber-300">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           {category.title}
           <span aria-hidden="true">·</span>
@@ -74,27 +76,36 @@ export const VarietyStage: React.FC<VarietyStageProps> = ({
           </span>
         </span>
 
-        <h3 className={cn(DESIGN_TOKENS.typography.panelTitle, 'text-white')}>{variety.name}</h3>
+        <h3
+          className={cn(DESIGN_TOKENS.typography.panelTitle, 'text-stone-900 dark:text-stone-100')}
+        >
+          {variety.name}
+        </h3>
 
         {showCollectionDescription && (
-          <p className="max-w-xl text-sm font-light leading-relaxed text-stone-300">
+          <p className="max-w-xl text-sm font-light leading-relaxed text-stone-600 dark:text-stone-400">
             {category.description}
           </p>
         )}
 
-        <p className={cn(DESIGN_TOKENS.typography.body, 'max-w-xl text-stone-200')}>
+        <p
+          className={cn(
+            DESIGN_TOKENS.typography.body,
+            'max-w-xl text-stone-600 dark:text-stone-300'
+          )}
+        >
           {variety.description}
         </p>
 
+        {/* `glass.chip` was `bg-white/10` over a `border-white/20` — correct over a
+            photograph, invisible on a `stone-50` page. Real borders instead, the same
+            pair `ProductCard`'s scent chips use. */}
         {variety.examples.length > 0 && (
           <ul className="flex flex-wrap gap-2 pt-1">
             {variety.examples.map((example) => (
               <li
                 key={example}
-                className={cn(
-                  'rounded-full px-3.5 py-1.5 text-xs font-light text-white',
-                  DESIGN_TOKENS.glass.chip
-                )}
+                className="rounded-full border border-stone-300/70 bg-white/70 px-3.5 py-1.5 text-xs font-light text-stone-700 dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-300"
               >
                 {example}
               </li>
@@ -113,7 +124,7 @@ export const VarietyStage: React.FC<VarietyStageProps> = ({
             to={{ pathname: '/catalog', hash: buildVarietyHash(category.id, variety.id) }}
             className={cn(
               'group mt-2 inline-flex items-center gap-2.5 rounded-full bg-amber-500 px-7 py-3.5 text-stone-950 shadow-lg transition-colors hover:bg-amber-400',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-950',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
               DESIGN_TOKENS.typography.button
             )}
           >
@@ -127,10 +138,12 @@ export const VarietyStage: React.FC<VarietyStageProps> = ({
           <Link
             to="/contact"
             state={{ categoryTitle: `${category.title} — ${variety.name}` }}
+            /* `glass.floatingBtn` is dropped along with `border-white/40`: both were
+               tuned to read against photography, and its `backdrop-blur-xl` now has
+               nothing to blur but costs the same. */
             className={cn(
-              'mt-2 inline-flex items-center gap-2.5 rounded-full border border-white/40 px-7 py-3.5 text-white transition-colors hover:bg-white/20',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-950',
-              DESIGN_TOKENS.glass.floatingBtn,
+              'mt-2 inline-flex items-center gap-2.5 rounded-full border border-stone-300 px-7 py-3.5 text-stone-700 transition-colors hover:border-amber-500 hover:text-amber-600',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400 dark:focus-visible:ring-offset-stone-950',
               DESIGN_TOKENS.typography.button
             )}
           >
@@ -140,11 +153,9 @@ export const VarietyStage: React.FC<VarietyStageProps> = ({
         )}
       </div>
 
-      {/* Hidden below `lg`: the photograph is already carrying the visual weight on a
-          phone, and a 20rem canvas plus the narrative does not fit a viewport. */}
-      <div
-        className={cn('hidden justify-center rounded-3xl p-6 lg:flex', DESIGN_TOKENS.glass.card)}
-      >
+      {/* Hidden below `lg`: a 20rem canvas plus the narrative does not fit a phone
+          viewport, and the narrative is what matters at that size. */}
+      <div className="hidden justify-center p-6 lg:flex">
         <InteractiveCandleCanvas flameIntensity={1} visual={variety.visual} label={variety.name} />
       </div>
     </div>
