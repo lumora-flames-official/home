@@ -1,9 +1,10 @@
 import React from 'react';
-import { ImageIcon, Send } from 'lucide-react';
+import { ImageIcon, Send, ShoppingBag } from 'lucide-react';
 import type { CatalogProduct } from '../../types/catalog';
 import { formatPrice } from '../../lib/formatPrice';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
+import { useCart } from '../cart/CartContext';
 
 /** Props for {@link ProductCard}. */
 export interface ProductCardProps {
@@ -18,6 +19,13 @@ export interface ProductCardProps {
    * finished URL so the card stays presentational and doesn't import contact helpers.
    */
   commissionHref: string;
+  /**
+   * Display titles for the collection and variety, threaded through to
+   * {@link useCart}'s `addItem` so the cart commission message names the right
+   * collection. The card's commission href already uses these titles; passing them
+   * here avoids a second lookup.
+   */
+  context: { categoryTitle: string; varietyName: string };
   /**
    * Whether the image should load eagerly. Pass `true` only for the first row of a
    * grid — everything below the fold competes with it for bandwidth on first paint.
@@ -56,8 +64,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onOpen,
   commissionHref,
+  context,
   eager = false,
 }) => {
+  const { addItem, items, open: openCart } = useCart();
+  const inCart = items.some((i) => i.product.sku === product.sku);
   const extraShots = product.imageUrls.length - 1;
 
   return (
@@ -103,25 +114,51 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="mt-auto flex items-center justify-between gap-2">
           <span className="text-base font-light tabular-nums">{formatPrice(product.priceInr)}</span>
 
-          {/*
-            A real anchor, not a button, because this leaves the site for WhatsApp.
-            `stopPropagation` keeps the parent button from also opening the dialog.
-            `e.nativeEvent.stopImmediatePropagation` is not needed — React's synthetic
-            event system is already stopped by `stopPropagation`.
-          */}
-          <a
-            href={commissionHref}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Commission ${product.name} — opens WhatsApp`}
-            onClick={(e) => e.stopPropagation()}
-            className={cn(
-              'grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-500 text-stone-950 transition-colors hover:bg-amber-400',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950'
-            )}
-          >
-            <Send className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
+          <div className="flex items-center gap-1">
+            {/* Cart: adds 1 if new, opens drawer if already in cart. */}
+            <button
+              type="button"
+              aria-label={
+                inCart ? `Open cart — ${product.name} already added` : `Add ${product.name} to cart`
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                if (inCart) {
+                  openCart();
+                } else {
+                  addItem(product, context);
+                  openCart();
+                }
+              }}
+              className={cn(
+                'grid h-8 w-8 shrink-0 place-items-center rounded-full transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
+                inCart
+                  ? 'bg-amber-500 text-stone-950 hover:bg-amber-400'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700'
+              )}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            {/*
+              A real anchor, not a button, because this leaves the site for WhatsApp.
+              `stopPropagation` keeps the parent button from also opening the dialog.
+            */}
+            <a
+              href={commissionHref}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Commission ${product.name} — opens WhatsApp`}
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                'grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-500 text-stone-950 transition-colors hover:bg-amber-400',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950'
+              )}
+            >
+              <Send className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          </div>
         </div>
       </div>
     </button>

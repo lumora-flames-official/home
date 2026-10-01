@@ -10,6 +10,9 @@ import {
 } from 'react-router-dom';
 
 import { ThemeProvider } from './context';
+import { CartProvider } from './features/cart/CartContext';
+import { CartDrawer } from './features/cart/CartDrawer';
+import { FloatingCartButton } from './features/cart/FloatingCartButton';
 import { DESIGN_TOKENS } from './theme/designSystem';
 import { CANDLE_CATEGORIES } from './data/categories';
 
@@ -197,63 +200,70 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        {/**
-         * basename comes from Vite's `base`, so a subpath deploy needs no code change.
-         * Without it, every <Route path="/about"> would try to match the full pathname
-         * "/LummoraFlames/pr-12/about" and fall through to the * redirect - a preview
-         * that loads the home page and nothing else.
-         */}
-        <Router basename={import.meta.env.BASE_URL}>
-          <div className="relative min-h-screen w-full bg-stone-50 text-stone-900 transition-colors duration-500 dark:bg-stone-950 dark:text-stone-100">
-            <AmbientFlameGlow />
+        <CartProvider>
+          {/**
+           * basename comes from Vite's `base`, so a subpath deploy needs no code change.
+           * Without it, every <Route path="/about"> would try to match the full pathname
+           * "/LummoraFlames/pr-12/about" and fall through to the * redirect - a preview
+           * that loads the home page and nothing else.
+           */}
+          <Router basename={import.meta.env.BASE_URL}>
+            <div className="relative min-h-screen w-full bg-stone-50 text-stone-900 transition-colors duration-500 dark:bg-stone-950 dark:text-stone-100">
+              <AmbientFlameGlow />
 
-            <div className="relative z-10">
-              <Navbar />
+              <div className="relative z-10">
+                <Navbar />
 
-              <PageTransition>
-                <Suspense fallback={<RouteFallback />}>
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/collections" element={<CollectionsPage />} />
-                    <Route path="/catalog" element={<CatalogRoute />} />
-                    {/*
+                <PageTransition>
+                  <Suspense fallback={<RouteFallback />}>
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/collections" element={<CollectionsPage />} />
+                      <Route path="/catalog" element={<CatalogRoute />} />
+                      {/*
                       Retired routes, kept so previously-published links never 404.
                       `/category/:id` carries its collection across as a hash so the
                       link still lands where it meant to; `/category/:id/details`
                       listed the same varieties the journey now walks through and has
                       no position worth preserving.
                     */}
-                    <Route path="/category/:categoryId" element={<CategoryRedirect />} />
-                    <Route
-                      path="/category/:categoryId/details"
-                      element={<Navigate to="/collections" replace />}
-                    />
-                    <Route path="/about" element={<AboutPage />} />
-                    <Route path="/contact" element={<ContactPage />} />
-                    {/*
+                      <Route path="/category/:categoryId" element={<CategoryRedirect />} />
+                      <Route
+                        path="/category/:categoryId/details"
+                        element={<Navigate to="/collections" replace />}
+                      />
+                      <Route path="/about" element={<AboutPage />} />
+                      <Route path="/contact" element={<ContactPage />} />
+                      {/*
                       Dev-only, and absent rather than guarded in production — so on
                       a deployed build this falls through to the * redirect below,
                       which is exactly the 404 behaviour the route should have.
                     */}
-                    {UpdateListPanel && (
-                      <Route
-                        path="/update-list"
-                        element={
-                          <PageShell>
-                            <UpdateListPanel />
-                          </PageShell>
-                        }
-                      />
-                    )}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </Suspense>
-              </PageTransition>
+                      {UpdateListPanel && (
+                        <Route
+                          path="/update-list"
+                          element={
+                            <PageShell>
+                              <UpdateListPanel />
+                            </PageShell>
+                          }
+                        />
+                      )}
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                  </Suspense>
+                </PageTransition>
 
-              <SiteFooter />
+                <SiteFooter />
+              </div>
+
+              {/* Cart drawer and mobile shortcut live here so they persist across
+                route changes. The dialog uses the top layer so z-index is irrelevant. */}
+              <CartDrawer />
+              <FloatingCartButton />
             </div>
-          </div>
-        </Router>
+          </Router>
+        </CartProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

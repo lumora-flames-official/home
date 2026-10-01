@@ -133,6 +133,7 @@ export const VarietyCatalog: React.FC<VarietyCatalogProps> = ({
               product={product}
               onOpen={onOpenProduct}
               commissionHref={commissionHref}
+              context={context}
               // Roughly a first row, whatever the breakpoint; the rest are below the fold.
               eager={index < 4}
             />

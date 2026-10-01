@@ -1,12 +1,24 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, PhoneCall, Home, BookOpen, LayoutGrid, Moon, Sun, Menu, X } from 'lucide-react';
+import {
+  Compass,
+  PhoneCall,
+  Home,
+  BookOpen,
+  LayoutGrid,
+  Moon,
+  Sun,
+  Menu,
+  X,
+  ShoppingBag,
+} from 'lucide-react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useTheme } from '../../context';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
+import { useCart } from '../../features/cart/CartContext';
 
 /** A single top-level destination in the global navigation. */
 interface NavItem {
@@ -71,6 +83,7 @@ const ICON_BUTTON_CLASS =
  */
 export const Navbar: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
+  const { totalCount, open: openCart } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
@@ -343,8 +356,29 @@ export const Navbar: React.FC = () => {
           ))}
         </div>
 
-        {/* Theme toggle + drawer trigger */}
+        {/* Cart icon + theme toggle + drawer trigger */}
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <button
+            type="button"
+            onClick={openCart}
+            aria-label={
+              totalCount > 0
+                ? `Open cart — ${totalCount} ${totalCount === 1 ? 'item' : 'items'}`
+                : 'Open cart'
+            }
+            className={cn(ICON_BUTTON_CLASS, 'relative')}
+          >
+            <ShoppingBag className="w-4 h-4" />
+            {totalCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[0.5rem] font-bold tabular-nums text-stone-950"
+              >
+                {totalCount > 99 ? '99+' : totalCount}
+              </span>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={toggleTheme}
