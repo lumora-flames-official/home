@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, X } from 'lucide-react';
+import { Minus, Plus, Send, ShoppingBag, X } from 'lucide-react';
 import type { CatalogProduct } from '../../types/catalog';
 import { formatPrice } from '../../lib/formatPrice';
 import { resolveProductAction, type ProductActionContext } from '../../lib/productActions';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
+import { useCart } from '../cart/CartContext';
 
 /**
  * The image viewer: one large frame plus a thumbnail row.
@@ -50,6 +51,76 @@ const ProductGallery: React.FC<{ name: string; urls: string[] }> = ({ name, urls
           ))}
         </ul>
       )}
+    </div>
+  );
+};
+
+/**
+ * Quantity stepper + "Add to cart" / "Update cart" button for one product.
+ *
+ * Rendered with `key={product.sku}` so its local qty state resets whenever
+ * a different product opens — the same trick `ProductGallery` uses for the
+ * active photo index. Without the key, the qty from the previous product
+ * would carry over for one render before the effect could clear it.
+ */
+const CartSection: React.FC<{
+  product: CatalogProduct;
+  context: ProductActionContext;
+}> = ({ product, context }) => {
+  const { addItem, updateQty, items, open: openCart } = useCart();
+  const existing = items.find((i) => i.product.sku === product.sku);
+  const [qty, setQty] = useState(existing?.quantity ?? 1);
+
+  const handleAddToCart = () => {
+    if (existing) {
+      updateQty(product.sku, qty);
+    } else {
+      addItem(product, context, qty);
+    }
+    openCart();
+  };
+
+  const stepperBtnClass =
+    'grid h-9 w-9 place-items-center rounded-full text-stone-600 transition-colors ' +
+    'hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ' +
+    'dark:text-stone-400 dark:hover:text-stone-100';
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5 rounded-full border border-stone-200 bg-stone-100/50 dark:border-stone-700 dark:bg-stone-900/50">
+        <button
+          type="button"
+          onClick={() => setQty((q) => Math.max(1, q - 1))}
+          aria-label="Decrease quantity"
+          className={stepperBtnClass}
+        >
+          <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+        <span className="w-6 select-none text-center text-sm font-light tabular-nums">{qty}</span>
+        <button
+          type="button"
+          onClick={() => setQty((q) => Math.min(99, q + 1))}
+          aria-label="Increase quantity"
+          className={stepperBtnClass}
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleAddToCart}
+        className={cn(
+          'flex-1 inline-flex items-center justify-center gap-2 rounded-full border border-stone-300 px-4 py-2.5 text-stone-900 transition-colors',
+          'hover:border-amber-500 hover:text-amber-600',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50',
+          'dark:border-stone-700 dark:text-stone-100 dark:hover:border-amber-500 dark:hover:text-amber-400 dark:focus-visible:ring-offset-stone-950',
+          DESIGN_TOKENS.typography.button
+        )}
+      >
+        <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+        {existing ? 'Update cart' : 'Add to cart'}
+      </button>
     </div>
   );
 };
@@ -225,9 +296,11 @@ export const ProductDialog: React.FC<ProductDialogProps> = ({ product, context, 
               availability, quantity and lead time.
             </p>
 
-            {/* `mt-auto` keeps the action on the panel's bottom edge whatever the notes
-                above it add up to, so it is in the same place for every candle. */}
-            <div className="mt-auto">
+            {/* `mt-auto` keeps the actions on the panel's bottom edge. */}
+            <div className="mt-auto space-y-2.5">
+              {/* `key` resets the qty state each time a different product opens. */}
+              <CartSection key={product.sku} product={product} context={context} />
+
               {intent.kind === 'link' ? (
                 <a
                   href={intent.href}
