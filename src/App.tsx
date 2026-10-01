@@ -13,6 +13,7 @@ import { ThemeProvider } from './context';
 import { CartProvider } from './features/cart/CartContext';
 import { CartDrawer } from './features/cart/CartDrawer';
 import { FloatingCartButton } from './features/cart/FloatingCartButton';
+import { UpdatePrompt } from './features/pwa/UpdatePrompt';
 import { DESIGN_TOKENS } from './theme/designSystem';
 import { CANDLE_CATEGORIES } from './data/categories';
 
@@ -261,6 +262,8 @@ export default function App() {
                 route changes. The dialog uses the top layer so z-index is irrelevant. */}
               <CartDrawer />
               <FloatingCartButton />
+              {/* Shown only when SW has a new version ready. Returns null otherwise. */}
+              <UpdatePrompt />
             </div>
           </Router>
         </CartProvider>
