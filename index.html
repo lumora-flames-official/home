@@ -13,6 +13,15 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!--
+      The conversion path ends at wa.me — every "Commission" button opens WhatsApp.
+      `preconnect` starts the TCP+TLS handshake early so the first tap opens
+      WhatsApp without a perceptible pause. `dns-prefetch` is the fallback for
+      browsers that don't support preconnect; both cost zero bytes of payload.
+    -->
+    <link rel="preconnect" href="https://wa.me" />
+    <link rel="dns-prefetch" href="https://wa.me" />
+
     <title>Lumora Flames — Handcrafted Artisanal Candles</title>
     <meta
       name="description"
