@@ -49,6 +49,9 @@ const EXPLORE_LINKS = [
   { to: '/contact', label: 'Bespoke Concierge' },
 ];
 
+/** Resolves the catalogue download URL relative to the deploy base path. */
+const catalogueHref = (): string => `${import.meta.env.BASE_URL}catalog.pdf`;
+
 /**
  * Footer closes every page with the wordmark, collection links, and the brand's
  * social placeholders.
@@ -137,6 +140,15 @@ export const Footer: React.FC = () => (
                 </Link>
               </li>
             ))}
+            <li>
+              <a
+                href={catalogueHref()}
+                download="Lumora-Flames-Catalogue.pdf"
+                className="text-sm font-light text-stone-600 transition-colors hover:text-amber-500 dark:text-stone-400 dark:hover:text-amber-400"
+              >
+                Download Catalogue
+              </a>
+            </li>
           </ul>
         </nav>
       </div>
