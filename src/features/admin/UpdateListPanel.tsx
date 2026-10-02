@@ -57,8 +57,7 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 // GitHub Codespaces forwards ports under *.app.github.dev and *.preview.app.github.dev.
 // The Vite dev server still runs; only the hostname differs from a local machine.
 const isLocalHost = (): boolean =>
-  LOCAL_HOSTS.has(window.location.hostname) ||
-  window.location.hostname.endsWith('.app.github.dev');
+  LOCAL_HOSTS.has(window.location.hostname) || window.location.hostname.endsWith('.app.github.dev');
 
 /**
  * A product plus the keys it was filed under and their display titles.
