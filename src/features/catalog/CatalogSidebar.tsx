@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { PanelLeftClose, PanelLeftOpen, Send } from 'lucide-react';
+import { Download, PanelLeftClose, PanelLeftOpen, Send } from 'lucide-react';
 import type { CatalogGroup } from '../../data/catalog';
 import { cn } from '../../lib/utils';
 import type { CatalogTab } from './CatalogToolbar';
@@ -212,6 +212,28 @@ export const CatalogSidebar: React.FC<CatalogSidebarProps> = ({
           </span>
         )}
       </Link>
+
+      {/* Catalogue download — always the latest version, regenerated on every catalog change. */}
+      <a
+        href={`${import.meta.env.BASE_URL}catalog.pdf`}
+        download="Lumora-Flames-Catalogue.pdf"
+        title="Download product catalogue (PDF)"
+        className={cn(
+          'flex shrink-0 items-center gap-2.5 rounded-2xl border border-stone-300/40 bg-stone-100/10 py-3 text-stone-600 transition-colors hover:bg-stone-200/20 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800/30 dark:hover:text-stone-200',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500',
+          collapsed ? 'justify-center px-0' : 'px-4'
+        )}
+      >
+        <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {collapsed ? (
+          <span className="sr-only">Download catalogue</span>
+        ) : (
+          <span className="text-xs font-light leading-snug">
+            <span className="font-semibold uppercase tracking-wider">Download Catalogue</span>{' '}
+            <span className="text-stone-400 dark:text-stone-500">PDF</span>
+          </span>
+        )}
+      </a>
     </nav>
   );
 };
