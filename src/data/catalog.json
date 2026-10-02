@@ -44,5 +44,76 @@
         "images": ["spark-spritz-orange-fizz-2.jpg"]
       }
     ]
+  },
+  "traditional-festive": {
+    "urli-diya": [
+      {
+        "sku": "TRADITIONAL-V1-01",
+        "name": "Casino Cards Urli Collection",
+        "priceInr": 1099,
+        "fragrance": [
+          "Playing cards embedded in golden soy wax over a polished lotus urli bowl collection in  4 fragrances",
+          "Sandal",
+          "Whiskey",
+          "British Rose",
+          "Lemon Grass"
+        ],
+        "image": "casino-cards-urli-collection.webp",
+        "images": ["casino-cards-urli-collection-2.webp"]
+      },
+      {
+        "sku": "TRADITIONAL-V1-02",
+        "name": "Single Crimson Ruby Roses Urli",
+        "priceInr": 299,
+        "fragrance": [
+          "Hand-poured cream wax adorned with vibrant red sculpted roses and lush green leaves",
+          "English Rose & Velvet Musk"
+        ],
+        "image": "single-crimson-ruby-roses-urli.webp"
+      },
+      {
+        "sku": "TRADITIONAL-V1-03",
+        "name": "Set of 4: Crimson Ruby Rose",
+        "priceInr": 1000,
+        "fragrance": [
+          "Hand-poured cream wax adorned with vibrant red sculpted roses and lush green leaves",
+          "Set of 4",
+          "English Rose & Velvet Musk"
+        ],
+        "image": "set-of-4-crimson-ruby-rose.webp"
+      },
+      {
+        "sku": "TRADITIONAL-V1-04",
+        "name": "Set of 4 - Nutty Indulgence / Cashew & Almond Luxe",
+        "priceInr": 1000,
+        "fragrance": [
+          "A playful decorative candle topped with realistic wax cashews and almonds for a rich textured look",
+          "Roasted Vanilla",
+          "Warm Caramel"
+        ],
+        "image": "set-of-4-nutty-indulgence-cashew-almond-luxe.webp"
+      },
+      {
+        "sku": "TRADITIONAL-V1-05",
+        "name": "Set of 2 - Golden Serenade (Sunflower & Gold Flakes)",
+        "priceInr": 649,
+        "fragrance": [
+          "Elegant cream candles embellished with radiant gold leaf flakes and a statement handcrafted sunflower",
+          "Honeyed Amber",
+          "Wild Jasmine"
+        ],
+        "image": "set-of-2-golden-serenade-sunflower-gold-flakes.webp"
+      },
+      {
+        "sku": "TRADITIONAL-V1-06",
+        "name": "Single - Lotus Pond Serenity",
+        "priceInr": 349,
+        "fragrance": [
+          "A serene aquamarine pond scene complete with delicate pink lotus flowers lily pads and a tiny wooden boat",
+          "Lotus Blossom & White Tea"
+        ],
+        "image": "single-lotus-pond-serenity.webp"
+      }
+    ]
   }
 }
