@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import type { CandleVessel, CandleVisual } from '../../types/category';
@@ -149,6 +149,8 @@ export interface InteractiveCandleCanvasProps {
    * node's rect — without querying this component's internal class names.
    */
   flameClassName?: string;
+  /** Pauses the rotation tween when `true`. Used to freeze off-screen sections. */
+  paused?: boolean;
 }
 
 /**
@@ -176,10 +178,12 @@ export const InteractiveCandleCanvas: React.FC<InteractiveCandleCanvasProps> = (
   accentColor = '#f59e0b',
   inheritFlameIntensity = false,
   flameClassName,
+  paused = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bodyShapeRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
+  const rotationTweenRef = useRef<gsap.core.Tween | null>(null);
 
   const resolved = visual ?? FALLBACK_VISUAL;
   const geometry = VESSEL_GEOMETRY[resolved.vessel];
@@ -239,11 +243,12 @@ export const InteractiveCandleCanvas: React.FC<InteractiveCandleCanvasProps> = (
 
       const phase = { turns: 0 };
 
-      gsap.to(phase, {
+      rotationTweenRef.current = gsap.to(phase, {
         turns: 1,
         duration: ROTATION_DURATION,
         repeat: -1,
         ease: 'none',
+        paused,
         onUpdate: () => {
           // Bands are evenly spaced around the vessel, so as one leaves the front
           // another is already arriving.
@@ -271,6 +276,15 @@ export const InteractiveCandleCanvas: React.FC<InteractiveCandleCanvasProps> = (
     },
     { scope: containerRef, dependencies: [prefersReducedMotion, resolved.vessel] }
   );
+
+  useEffect(() => {
+    if (!rotationTweenRef.current) return;
+    if (paused) {
+      rotationTweenRef.current.pause();
+    } else {
+      rotationTweenRef.current.resume();
+    }
+  }, [paused]);
 
   // Morph when the active subcategory changes. Tweening scale rather than
   // swapping instantly is what makes this read as one candle reshaping itself.

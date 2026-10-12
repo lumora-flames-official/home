@@ -1,15 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 import { CANDLE_CATEGORIES } from '../../data/categories';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { buildVarietyHash, parseCollectionHash, type VarietyTarget } from '../../lib/deepLink';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 import { DURATION, EASE, settleInstantly } from '../../lib/animations';
 import { EmberField } from '../../components/ui/EmberField';
+import { CollectionsMobileView } from './CollectionsMobileView';
 import { CollectionTabs } from './CollectionTabs';
 import { VarietyStage } from './VarietyStage';
 
@@ -141,12 +143,25 @@ const playEntrance = (entrance: CollectionEntrance, frame: HTMLElement): void =>
  * deliberately two strategies.
  */
 export const CollectionsJourney: React.FC = () => {
+  const isDesktop = useIsDesktop();
   const rootRef = useRef<HTMLDivElement>(null);
-  // `HTMLElement`, not `HTMLDivElement`: each block is a `<section>`.
   const blockRefs = useRef<(HTMLElement | null)[]>([]);
   const frameRefs = useRef<(HTMLDivElement | null)[]>([]);
   const contentRefs = useRef<(HTMLDivElement | null)[]>([]);
   const prefersReducedMotion = useReducedMotion();
+
+  const [visibleSections, setVisibleSections] = useState<boolean[]>(() =>
+    CANDLE_CATEGORIES.map(() => true)
+  );
+
+  const handleVisibility = useCallback((index: number, visible: boolean) => {
+    setVisibleSections((prev) => {
+      if (prev[index] === visible) return prev;
+      const next = [...prev];
+      next[index] = visible;
+      return next;
+    });
+  }, []);
 
   /**
    * Scroll bounds of each block's pin, captured on every ScrollTrigger refresh.
@@ -236,9 +251,7 @@ export const CollectionsJourney: React.FC = () => {
     () => {
       const frames = frameRefs.current.filter((frame): frame is HTMLDivElement => frame !== null);
 
-      if (prefersReducedMotion) {
-        // Clear rather than merely skip: a motion-preference change rebuilds this
-        // callback, and a frame left mid-tween would otherwise stay invisible.
+      if (prefersReducedMotion || !isDesktop) {
         settleInstantly(frames);
         return;
       }
@@ -293,15 +306,12 @@ export const CollectionsJourney: React.FC = () => {
 
       return () => triggers.forEach((trigger) => trigger?.kill());
     },
-    { scope: rootRef, dependencies: [prefersReducedMotion] }
+    { scope: rootRef, dependencies: [prefersReducedMotion, isDesktop] }
   );
 
-  // Cross-fade the variety content whenever the active variety changes. Driven off
-  // state rather than the scroll timeline so it plays identically for scrolling, tab
-  // jumps and deep links.
   useGSAP(
     () => {
-      if (prefersReducedMotion) return;
+      if (prefersReducedMotion || !isDesktop) return;
 
       const content = contentRefs.current[activeCategory];
       if (!content) return;
@@ -312,7 +322,14 @@ export const CollectionsJourney: React.FC = () => {
         { y: 0, opacity: 1, duration: DURATION.base, stagger: 0.06, ease: EASE.enter }
       );
     },
-    { dependencies: [activeCategory, activeVarieties[activeCategory], prefersReducedMotion] }
+    {
+      dependencies: [
+        activeCategory,
+        activeVarieties[activeCategory],
+        prefersReducedMotion,
+        isDesktop,
+      ],
+    }
   );
 
   /**
@@ -458,6 +475,28 @@ export const CollectionsJourney: React.FC = () => {
     window.history.replaceState(null, '', buildVarietyHash(category.id, variety.id));
   }, [activeCategory, activeVarieties]);
 
+  useEffect(() => {
+    if (!isDesktop) return;
+
+    const sections = blockRefs.current.filter(Boolean) as HTMLElement[];
+    if (sections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const index = sections.indexOf(entry.target as HTMLElement);
+          if (index !== -1) handleVisibility(index, entry.isIntersecting);
+        }
+      },
+      { rootMargin: '100px 0px' }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [isDesktop, handleVisibility]);
+
+  if (!isDesktop) return <CollectionsMobileView />;
+
   return (
     <div ref={rootRef} className="relative w-full">
       <CollectionTabs
@@ -504,7 +543,7 @@ export const CollectionsJourney: React.FC = () => {
                   DESIGN_TOKENS.overlay.scrimRadial
                 )}
               />
-              <EmberField />
+              <EmberField paused={!visibleSections[categoryIndex]} />
             </div>
 
             {/* Screen-reader anchor for the collection. The visible collection name is
@@ -538,6 +577,7 @@ export const CollectionsJourney: React.FC = () => {
                       index={index}
                       total={varieties.length}
                       showCollectionDescription={index === 0}
+                      paused={!visibleSections[categoryIndex]}
                     />
                   </div>
                 ))
@@ -553,6 +593,7 @@ export const CollectionsJourney: React.FC = () => {
                     index={activeIndex}
                     total={varieties.length}
                     showCollectionDescription={activeIndex === 0}
+                    paused={!visibleSections[categoryIndex]}
                   />
                 </div>
               )}

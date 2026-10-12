@@ -5,6 +5,7 @@ import type { Category, SubCategory } from '../../types/category';
 import { InteractiveCandleCanvas } from '../../components/canvas/InteractiveCandleCanvas';
 import { hasVarietyProducts } from '../../data/catalog';
 import { buildVarietyHash } from '../../lib/deepLink';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
 
@@ -27,6 +28,8 @@ export interface VarietyStageProps {
    * live now that the separate collection screens are gone.
    */
   showCollectionDescription?: boolean;
+  /** Pauses the candle rotation tween when off-screen. Desktop only. */
+  paused?: boolean;
 }
 
 /**
@@ -56,8 +59,10 @@ export const VarietyStage: React.FC<VarietyStageProps> = ({
   index,
   total,
   showCollectionDescription = false,
+  paused = false,
 }) => {
   const stocked = hasVarietyProducts(category.id, variety.id);
+  const isDesktop = useIsDesktop();
 
   return (
     <div className="grid w-full items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
@@ -153,11 +158,16 @@ export const VarietyStage: React.FC<VarietyStageProps> = ({
         )}
       </div>
 
-      {/* Hidden below `lg`: a 20rem canvas plus the narrative does not fit a phone
-          viewport, and the narrative is what matters at that size. */}
-      <div className="hidden justify-center p-6 lg:flex">
-        <InteractiveCandleCanvas flameIntensity={1} visual={variety.visual} label={variety.name} />
-      </div>
+      {isDesktop && (
+        <div className="flex justify-center p-6">
+          <InteractiveCandleCanvas
+            flameIntensity={1}
+            visual={variety.visual}
+            label={variety.name}
+            paused={paused}
+          />
+        </div>
+      )}
     </div>
   );
 };
