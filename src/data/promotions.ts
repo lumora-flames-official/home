@@ -50,8 +50,8 @@ export const OFFER_SLIDES: PromoSlide[] = [
   {
     id: 'sculpture-series',
     tagline: 'New Sculpture Series',
-    title: 'Desserts that',
-    highlightText: 'never melt',
+    title: 'Desserts that melts with',
+    highlightText: 'a warm glow',
     description:
       'Gourmet wax sculpture — layered parfaits, cold-pressed smoothies, and cocktail pours, sculpted by hand.',
     bgImage: ASSET_IMAGES.promotional_one.second,
