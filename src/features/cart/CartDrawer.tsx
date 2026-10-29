@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Minus, Plus, Send, ShoppingBag, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Minus, Plus, RotateCcw, Send, ShoppingBag, Trash2, X } from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 import { useCart } from './CartContext';
-import { cartWhatsAppLink, type DeliveryAddress } from '../../lib/cartWhatsApp';
+import { buildCartCommissionMessage, cartWhatsAppLink, type DeliveryAddress } from '../../lib/cartWhatsApp';
 import { formatPrice } from '../../lib/formatPrice';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
@@ -77,7 +77,7 @@ interface AddressStepProps {
   totalPrice: number;
   onBack: () => void;
   onClose: () => void;
-  onSent: () => void;
+  onOpenedWhatsApp: (link: string, message: string) => void;
 }
 
 const AddressStep: React.FC<AddressStepProps> = ({
@@ -85,7 +85,7 @@ const AddressStep: React.FC<AddressStepProps> = ({
   totalPrice,
   onBack,
   onClose,
-  onSent,
+  onOpenedWhatsApp,
 }) => {
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -98,8 +98,10 @@ const AddressStep: React.FC<AddressStepProps> = ({
       city: data.get('city') as string,
       pincode: data.get('pincode') as string,
     };
-    window.open(cartWhatsAppLink(items, address), '_blank', 'noreferrer');
-    onSent();
+    const link = cartWhatsAppLink(items, address);
+    const message = buildCartCommissionMessage(items, address);
+    window.open(link, '_blank', 'noreferrer');
+    onOpenedWhatsApp(link, message);
   };
 
   const inputClass =
@@ -254,6 +256,132 @@ const AddressStep: React.FC<AddressStepProps> = ({
   );
 };
 
+// ─── Confirm step ────────────────────────────────────────────────────────────
+
+interface ConfirmStepProps {
+  whatsappLink: string;
+  messageText: string;
+  onConfirmed: () => void;
+  onRetry: () => void;
+  onClose: () => void;
+}
+
+const ConfirmStep: React.FC<ConfirmStepProps> = ({
+  whatsappLink,
+  messageText,
+  onConfirmed,
+  onRetry,
+  onClose,
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(messageText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* Clipboard API unavailable in some WebViews — silent fail. */
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b border-stone-200/70 p-4 dark:border-stone-800/70">
+        <Send className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-light tracking-tight">Confirm your order</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close cart"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:border-amber-500 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-stone-700 dark:text-stone-400"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 p-6 text-center">
+        <div className="grid h-16 w-16 place-items-center rounded-full bg-amber-100 dark:bg-amber-500/10">
+          <Send className="h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-base font-light">Did WhatsApp open with your order?</p>
+          <p className="text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+            Your cart is safe until you confirm. If WhatsApp didn't open, use the link below
+            or copy the message to send it manually.
+          </p>
+        </div>
+
+        <div className="flex w-full flex-col gap-2">
+          <button
+            type="button"
+            onClick={onConfirmed}
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-6 py-3.5 text-stone-950 transition-colors hover:bg-amber-400',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            Yes, I sent it
+          </button>
+
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full border border-stone-300 px-6 py-3 text-stone-900 transition-colors',
+              'hover:border-amber-500 hover:text-amber-600',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50',
+              'dark:border-stone-700 dark:text-stone-100 dark:hover:border-amber-500 dark:hover:text-amber-400 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            Re-open WhatsApp
+          </a>
+
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full border border-stone-300 px-6 py-3 text-stone-900 transition-colors',
+              'hover:border-amber-500 hover:text-amber-600',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50',
+              'dark:border-stone-700 dark:text-stone-100 dark:hover:border-amber-500 dark:hover:text-amber-400 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                Copy order text
+              </>
+            )}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRetry}
+          className="text-xs text-stone-400 underline underline-offset-2 transition-colors hover:text-stone-600 dark:hover:text-stone-300"
+        >
+          Go back and edit
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Cart step ────────────────────────────────────────────────────────────────
 
 interface CartStepProps {
@@ -349,9 +477,12 @@ const CartStep: React.FC<CartStepProps> = ({
  * Right-side drawer for the shopping cart.
  *
  * Rendered once at the app level (App.tsx) and driven entirely by
- * {@link useCart}'s `isOpen` / `open` / `close`. Two internal steps:
+ * {@link useCart}'s `isOpen` / `open` / `close`. Three internal steps:
  * 1. Cart items with quantity controls.
  * 2. Delivery address form that builds and opens the WhatsApp commission link.
+ * 3. Confirmation gate — cart is only cleared after the user confirms
+ *    WhatsApp received the message, preventing data loss when popup
+ *    blockers or WebView restrictions silently eat `window.open`.
  *
  * Uses the native `<dialog>` element with `showModal()` for the same reasons as
  * `ProductDialog`: free backdrop, top-layer stacking, Escape to dismiss, and
@@ -360,12 +491,14 @@ const CartStep: React.FC<CartStepProps> = ({
 export const CartDrawer: React.FC = () => {
   const { items, removeItem, updateQty, totalPrice, totalCount, isOpen, close, clear } = useCart();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [step, setStep] = useState<'cart' | 'address'>('cart');
+  const [step, setStep] = useState<'cart' | 'address' | 'confirm'>('cart');
+  const [pendingLink, setPendingLink] = useState('');
+  const [pendingMessage, setPendingMessage] = useState('');
 
-  // Resets step to 'cart' and closes. Called by every dismissal path so the
-  // next open always starts on the items list, not the address form.
   const handleClose = () => {
-    setStep('cart');
+    if (step !== 'confirm') {
+      setStep('cart');
+    }
     close();
   };
 
@@ -404,15 +537,28 @@ export const CartDrawer: React.FC = () => {
         'bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100'
       )}
     >
-      {step === 'address' ? (
+      {step === 'confirm' ? (
+        <ConfirmStep
+          whatsappLink={pendingLink}
+          messageText={pendingMessage}
+          onConfirmed={() => {
+            clear();
+            setStep('cart');
+            close();
+          }}
+          onRetry={() => setStep('address')}
+          onClose={handleClose}
+        />
+      ) : step === 'address' ? (
         <AddressStep
           items={items}
           totalPrice={totalPrice}
           onBack={() => setStep('cart')}
           onClose={handleClose}
-          onSent={() => {
-            clear();
-            handleClose();
+          onOpenedWhatsApp={(link, message) => {
+            setPendingLink(link);
+            setPendingMessage(message);
+            setStep('confirm');
           }}
         />
       ) : (
