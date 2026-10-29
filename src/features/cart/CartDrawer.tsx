@@ -87,6 +87,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
   onClose,
   onOpenedWhatsApp,
 }) => {
+  const whatsappAnchorRef = useRef<HTMLAnchorElement>(null);
+
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -100,7 +102,14 @@ const AddressStep: React.FC<AddressStepProps> = ({
     };
     const link = cartWhatsAppLink(items, address);
     const message = buildCartCommissionMessage(items, address);
-    window.open(link, '_blank', 'noreferrer');
+
+    // Anchor click instead of window.open — immune to popup blockers.
+    const anchor = whatsappAnchorRef.current;
+    if (anchor) {
+      anchor.href = link;
+      anchor.click();
+    }
+
     onOpenedWhatsApp(link, message);
   };
 
@@ -252,6 +261,9 @@ const AddressStep: React.FC<AddressStepProps> = ({
           </button>
         </div>
       </form>
+
+      {/* Hidden anchor for popup-blocker-immune navigation. */}
+      <a ref={whatsappAnchorRef} target="_blank" rel="noreferrer" className="hidden" aria-hidden="true" />
     </div>
   );
 };
