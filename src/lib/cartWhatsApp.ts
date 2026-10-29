@@ -41,8 +41,19 @@ export const buildCartCommissionMessage = (items: CartItem[], address: DeliveryA
   ].join('\n');
 };
 
+/**
+ * Conservative URL length ceiling. Android Chrome and many mobile WebViews
+ * truncate URLs around 2,083 characters; iOS is higher but in-app browsers
+ * (Instagram, Facebook) can be lower. 2,000 leaves a margin.
+ */
+export const WHATSAPP_URL_SAFE_LENGTH = 2000;
+
 /** Returns a `wa.me` deep link with the cart commission message pre-typed. */
 export const cartWhatsAppLink = (items: CartItem[], address: DeliveryAddress): string =>
   `https://wa.me/${WHATSAPP.number}?text=${encodeURIComponent(
     buildCartCommissionMessage(items, address)
   )}`;
+
+/** Whether the built URL would exceed the safe length for mobile deep links. */
+export const isCartUrlTooLong = (items: CartItem[], address: DeliveryAddress): boolean =>
+  cartWhatsAppLink(items, address).length > WHATSAPP_URL_SAFE_LENGTH;

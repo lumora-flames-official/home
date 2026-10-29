@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Minus, Plus, RotateCcw, Send, ShoppingBag, Trash2, X } from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 import { useCart } from './CartContext';
-import { buildCartCommissionMessage, cartWhatsAppLink, type DeliveryAddress } from '../../lib/cartWhatsApp';
+import { buildCartCommissionMessage, cartWhatsAppLink, isCartUrlTooLong, type DeliveryAddress } from '../../lib/cartWhatsApp';
 import { formatPrice } from '../../lib/formatPrice';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
@@ -72,9 +72,20 @@ const CartItemRow: React.FC<CartItemRowProps> = ({ item, onRemove, onUpdateQty }
 
 // ─── Address step ─────────────────────────────────────────────────────────────
 
+const EMPTY_ADDRESS: DeliveryAddress = {
+  name: '',
+  phone: '',
+  addressLine: '',
+  locality: '',
+  city: '',
+  pincode: '',
+};
+
 interface AddressStepProps {
   items: CartItem[];
   totalPrice: number;
+  address: DeliveryAddress;
+  onAddressChange: (address: DeliveryAddress) => void;
   onBack: () => void;
   onClose: () => void;
   onOpenedWhatsApp: (link: string, message: string) => void;
@@ -83,27 +94,29 @@ interface AddressStepProps {
 const AddressStep: React.FC<AddressStepProps> = ({
   items,
   totalPrice,
+  address,
+  onAddressChange,
   onBack,
   onClose,
   onOpenedWhatsApp,
 }) => {
   const whatsappAnchorRef = useRef<HTMLAnchorElement>(null);
+  const [urlWarning, setUrlWarning] = useState(false);
+
+  const setField = (field: keyof DeliveryAddress, value: string) =>
+    onAddressChange({ ...address, [field]: value });
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const address: DeliveryAddress = {
-      name: data.get('name') as string,
-      phone: data.get('phone') as string,
-      addressLine: data.get('addressLine') as string,
-      locality: data.get('locality') as string,
-      city: data.get('city') as string,
-      pincode: data.get('pincode') as string,
-    };
+
+    if (isCartUrlTooLong(items, address)) {
+      setUrlWarning(true);
+      return;
+    }
+
     const link = cartWhatsAppLink(items, address);
     const message = buildCartCommissionMessage(items, address);
 
-    // Anchor click instead of window.open — immune to popup blockers.
     const anchor = whatsappAnchorRef.current;
     if (anchor) {
       anchor.href = link;
@@ -162,6 +175,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               required
               autoComplete="name"
               placeholder="Your name"
+              value={address.name}
+              onChange={(e) => setField('name', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -178,6 +193,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               autoComplete="tel"
               pattern="[0-9+\s\-]{8,15}"
               placeholder="10-digit mobile number"
+              value={address.phone}
+              onChange={(e) => setField('phone', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -193,6 +210,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               required
               autoComplete="street-address"
               placeholder="Flat / House no., Building, Street"
+              value={address.addressLine}
+              onChange={(e) => setField('addressLine', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -207,6 +226,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               type="text"
               required
               placeholder="Area, Colony"
+              value={address.locality}
+              onChange={(e) => setField('locality', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -223,6 +244,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
                 required
                 autoComplete="address-level2"
                 placeholder="New Delhi"
+                value={address.city}
+                onChange={(e) => setField('city', e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -237,6 +260,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
                 required
                 pattern="[0-9]{6}"
                 placeholder="110001"
+                value={address.pincode}
+                onChange={(e) => setField('pincode', e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -247,7 +272,16 @@ const AddressStep: React.FC<AddressStepProps> = ({
           </p>
         </div>
 
-        <div className="border-t border-stone-200/70 p-4 dark:border-stone-800/70">
+        <div className="space-y-2 border-t border-stone-200/70 p-4 dark:border-stone-800/70">
+          {urlWarning && (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+            >
+              Your order has too many items for a single WhatsApp message. Remove
+              some items and place a second order for the rest.
+            </div>
+          )}
           <button
             type="submit"
             className={cn(
@@ -382,6 +416,12 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
           </button>
         </div>
 
+        <p className="px-2 text-[0.65rem] leading-relaxed text-stone-400 dark:text-stone-500">
+          If you need to resend with changes, clear the draft in WhatsApp first —
+          WhatsApp keeps the previous message in the compose box. Or copy the
+          updated text above and paste it yourself.
+        </p>
+
         <button
           type="button"
           onClick={onRetry}
@@ -506,6 +546,7 @@ export const CartDrawer: React.FC = () => {
   const [step, setStep] = useState<'cart' | 'address' | 'confirm'>('cart');
   const [pendingLink, setPendingLink] = useState('');
   const [pendingMessage, setPendingMessage] = useState('');
+  const [address, setAddress] = useState<DeliveryAddress>(EMPTY_ADDRESS);
 
   const handleClose = () => {
     if (step !== 'confirm') {
@@ -555,6 +596,7 @@ export const CartDrawer: React.FC = () => {
           messageText={pendingMessage}
           onConfirmed={() => {
             clear();
+            setAddress(EMPTY_ADDRESS);
             setStep('cart');
             close();
           }}
@@ -565,6 +607,8 @@ export const CartDrawer: React.FC = () => {
         <AddressStep
           items={items}
           totalPrice={totalPrice}
+          address={address}
+          onAddressChange={setAddress}
           onBack={() => setStep('cart')}
           onClose={handleClose}
           onOpenedWhatsApp={(link, message) => {
