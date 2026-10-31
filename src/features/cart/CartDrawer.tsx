@@ -1,11 +1,29 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Minus, Plus, RotateCcw, Send, ShoppingBag, Trash2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  ExternalLink,
+  Minus,
+  Plus,
+  RotateCcw,
+  Send,
+  ShoppingBag,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 import { useCart } from './CartContext';
-import { buildCartCommissionMessage, cartWhatsAppLink, isCartUrlTooLong, type DeliveryAddress } from '../../lib/cartWhatsApp';
+import {
+  buildCartCommissionMessage,
+  cartWhatsAppLink,
+  isCartUrlTooLong,
+  type DeliveryAddress,
+} from '../../lib/cartWhatsApp';
 import { formatPrice } from '../../lib/formatPrice';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
+import { isInAppBrowser } from '../../lib/webview';
 
 // ─── Cart item row ────────────────────────────────────────────────────────────
 
@@ -278,8 +296,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               role="alert"
               className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
             >
-              Your order has too many items for a single WhatsApp message. Remove
-              some items and place a second order for the rest.
+              Your order has too many items for a single WhatsApp message. Remove some items and
+              place a second order for the rest.
             </div>
           )}
           <button
@@ -297,7 +315,13 @@ const AddressStep: React.FC<AddressStepProps> = ({
       </form>
 
       {/* Hidden anchor for popup-blocker-immune navigation. */}
-      <a ref={whatsappAnchorRef} target="_blank" rel="noreferrer" className="hidden" aria-hidden="true" />
+      <a
+        ref={whatsappAnchorRef}
+        target="_blank"
+        rel="noreferrer"
+        className="hidden"
+        aria-hidden="true"
+      />
     </div>
   );
 };
@@ -356,8 +380,8 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
         <div className="space-y-2">
           <p className="text-base font-light">Did WhatsApp open with your order?</p>
           <p className="text-xs leading-relaxed text-stone-500 dark:text-stone-400">
-            Your cart is safe until you confirm. If WhatsApp didn't open, use the link below
-            or copy the message to send it manually.
+            Your cart is safe until you confirm. If WhatsApp didn't open, use the link below or copy
+            the message to send it manually.
           </p>
         </div>
 
@@ -417,9 +441,8 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
         </div>
 
         <p className="px-2 text-[0.65rem] leading-relaxed text-stone-400 dark:text-stone-500">
-          If you need to resend with changes, clear the draft in WhatsApp first —
-          WhatsApp keeps the previous message in the compose box. Or copy the
-          updated text above and paste it yourself.
+          If you need to resend with changes, clear the draft in WhatsApp first — WhatsApp keeps the
+          previous message in the compose box. Or copy the updated text above and paste it yourself.
         </p>
 
         <button
@@ -454,74 +477,94 @@ const CartStep: React.FC<CartStepProps> = ({
   onUpdateQty,
   onClose,
   onCommission,
-}) => (
-  <div className="flex h-full flex-col">
-    <div className="flex items-center gap-3 border-b border-stone-200/70 p-4 dark:border-stone-800/70">
-      <ShoppingBag className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <h2 className="text-base font-light tracking-tight">Your Cart</h2>
-        {totalCount > 0 && (
-          <p className="tabular-nums text-xs text-stone-500 dark:text-stone-400">
-            {totalCount} {totalCount === 1 ? 'item' : 'items'} · {formatPrice(totalPrice)}
-          </p>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close cart"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:border-amber-500 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-stone-700 dark:text-stone-400"
-      >
-        <X className="h-4 w-4" aria-hidden="true" />
-      </button>
-    </div>
+}) => {
+  const inAppWarning = useMemo(() => isInAppBrowser() && items.length > 0, [items.length]);
 
-    <div className="flex-1 overflow-y-auto overscroll-contain">
-      {items.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-          <ShoppingBag
-            className="h-10 w-10 text-stone-300 dark:text-stone-700"
-            aria-hidden="true"
-          />
-          <p className="text-sm font-light text-stone-500 dark:text-stone-400">
-            Cart is empty. Add candles from the catalog.
-          </p>
-        </div>
-      ) : (
-        <ul className="px-4">
-          {items.map((item) => (
-            <CartItemRow
-              key={item.product.sku}
-              item={item}
-              onRemove={onRemove}
-              onUpdateQty={onUpdateQty}
-            />
-          ))}
-        </ul>
-      )}
-    </div>
-
-    {items.length > 0 && (
-      <div className="space-y-3 border-t border-stone-200/70 p-4 dark:border-stone-800/70">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-stone-500 dark:text-stone-400">Total</span>
-          <span className="text-lg font-light tabular-nums">{formatPrice(totalPrice)}</span>
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b border-stone-200/70 p-4 dark:border-stone-800/70">
+        <ShoppingBag className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-light tracking-tight">Your Cart</h2>
+          {totalCount > 0 && (
+            <p className="tabular-nums text-xs text-stone-500 dark:text-stone-400">
+              {totalCount} {totalCount === 1 ? 'item' : 'items'} · {formatPrice(totalPrice)}
+            </p>
+          )}
         </div>
         <button
           type="button"
-          onClick={onCommission}
-          className={cn(
-            'inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-6 py-3.5 text-stone-950 transition-colors hover:bg-amber-400',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
-            DESIGN_TOKENS.typography.button
-          )}
+          onClick={onClose}
+          aria-label="Close cart"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:border-amber-500 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-stone-700 dark:text-stone-400"
         >
-          Commission these candles
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-    )}
-  </div>
-);
+
+      {inAppWarning && (
+        <div
+          role="status"
+          className="flex items-start gap-2 border-b border-amber-200/70 bg-amber-50 px-4 py-3 dark:border-amber-900/30 dark:bg-amber-950/20"
+        >
+          <ExternalLink
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+            aria-hidden="true"
+          />
+          <p className="text-[0.7rem] leading-relaxed text-amber-800 dark:text-amber-300">
+            You're browsing inside an app. Open this site in your browser to keep your cart when you
+            switch to WhatsApp.
+          </p>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        {items.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+            <ShoppingBag
+              className="h-10 w-10 text-stone-300 dark:text-stone-700"
+              aria-hidden="true"
+            />
+            <p className="text-sm font-light text-stone-500 dark:text-stone-400">
+              Cart is empty. Add candles from the catalog.
+            </p>
+          </div>
+        ) : (
+          <ul className="px-4">
+            {items.map((item) => (
+              <CartItemRow
+                key={item.product.sku}
+                item={item}
+                onRemove={onRemove}
+                onUpdateQty={onUpdateQty}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {items.length > 0 && (
+        <div className="space-y-3 border-t border-stone-200/70 p-4 dark:border-stone-800/70">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-stone-500 dark:text-stone-400">Total</span>
+            <span className="text-lg font-light tabular-nums">{formatPrice(totalPrice)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onCommission}
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-6 py-3.5 text-stone-950 transition-colors hover:bg-amber-400',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            Commission these candles
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── CartDrawer ───────────────────────────────────────────────────────────────
 

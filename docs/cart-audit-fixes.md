@@ -3,64 +3,61 @@
 Adversarial audit of the zero-backend WhatsApp commerce flow.
 Ordered by severity: P0 = data loss, P1 = corruption, P2 = UX integrity, P3 = edge/operational.
 
-## P0 — Data-Loss Bugs (fix before any real orders)
+## P0 — Data-Loss Bugs
 
-- [ ] **1. Cart cleared before WhatsApp confirmed**
-  `CartDrawer.tsx:413` — `onSent()` calls `clear()` synchronously after `window.open()`.
-  Popup blocked or failed = cart gone, no WhatsApp window, no recovery.
-  **Fix:** Add confirmation gate. Only clear after user explicitly confirms "I sent it."
+- [x] **1. Cart cleared before WhatsApp confirmed**
+  Added 3-step flow: cart → address → confirm. Cart only clears on explicit "Yes, I sent it."
+  Confirm step also offers "Re-open WhatsApp" (anchor link) and "Copy order text" (clipboard).
+  WhatsApp draft warning added for re-send scenarios.
 
-- [ ] **2. `window.open` popup-blocked in form submit**
-  `CartDrawer.tsx:101` — `handleSubmit` uses `e.preventDefault()` then `window.open`.
-  Many mobile browsers (Samsung, Mi, UC) treat this as non-user-initiated.
-  **Fix:** Replace with `<a href>` navigation like `ProductCard` already does.
+- [x] **2. `window.open` popup-blocked in form submit**
+  Replaced `window.open()` with hidden `<a>` element `.click()` — immune to popup blockers.
 
-- [ ] **3. URL truncation on large carts**
-  Encoded `wa.me` URL exceeds ~2,083 chars at ~10 items on Android.
-  Message arrives truncated, studio receives half an order.
-  **Fix:** Measure `encodeURIComponent` output length before opening. Warn or chunk if over threshold.
+- [x] **3. URL truncation on large carts**
+  Added `isCartUrlTooLong()` with 2,000-char ceiling. Form shows error and blocks submission
+  when URL would be truncated on mobile.
 
 ## P1 — Corruption / Silent Failures
 
-- [ ] **4. Cart schema drift after deploy**
-  Full `CatalogProduct` stored in `localStorage`. Any field rename = `₹NaN` in cart.
-  **Fix:** Store only `{sku, qty, categoryTitle, varietyName}` in localStorage. Hydrate product data from `catalog.json` at load time. Dead SKUs shown as "no longer available."
+- [x] **4. Cart schema drift after deploy**
+  localStorage now stores only `{sku, qty, categoryTitle, varietyName}`. Product data hydrated
+  fresh from `catalog.json` via `getProductBySku()` on every load. Delisted SKUs silently dropped.
+  Also added `SKU_INDEX` map in `catalog.ts` for O(1) lookups.
 
-- [ ] **5. Stale content-hashed image URLs in cart**
-  Deploy changes image hashes; cart stores old URLs; images 404 in drawer.
-  **Fix:** Resolved automatically by fix #4 (hydrate from catalog).
+- [x] **5. Stale content-hashed image URLs in cart**
+  Resolved by fix #4 — images always resolved from current catalog, never from stored snapshots.
 
-- [ ] **6. In-app browser localStorage isolation**
-  Instagram/Facebook WebView uses separate storage jar. User adds items, switches to WhatsApp, returns in real browser — cart gone.
-  **Fix:** Detect WebView user agent, show "open in browser" banner.
+- [x] **6. In-app browser localStorage isolation**
+  Added `isInAppBrowser()` detector (`src/lib/webview.ts`). Cart drawer shows amber warning
+  banner when inside Instagram/Facebook/TikTok/Snapchat WebViews.
 
 ## P2 — UX Integrity
 
-- [ ] **7. No cross-tab cart sync**
-  Two tabs, two cart states, possible duplicate/partial order.
-  **Fix:** Add `StorageEvent` listener in `CartContext` to re-read on external writes.
+- [x] **7. No cross-tab cart sync**
+  Added `StorageEvent` listener in `CartContext`. Tabs re-read cart on external localStorage writes.
 
-- [ ] **8. Price drift between add and checkout**
-  Cart snapshot preserves price-at-add-time. CMS price change = customer submits old price.
-  **Fix:** Revalidate against catalog at checkout step. Surface diff if changed.
+- [x] **8. Price drift between add and checkout**
+  Resolved by fix #4 — product data (including price) hydrated fresh on every page load.
 
-- [ ] **9. Quantity inflation from dual add paths**
-  `ProductCard` adds 1 (increments existing), `ProductDialog` adds N (also increments).
-  User expects "set to 3" but gets "existing + 3".
-  **Fix:** Clarify semantics or show cumulative total on add.
+- [x] **9. Quantity inflation from dual add paths**
+  Verified already correct: `ProductCard` only adds when `!inCart` (otherwise opens drawer).
+  `ProductDialog` uses `updateQty` (set) for existing items, `addItem` only for new. No fix needed.
 
 ## P3 — Edge Cases & Operational
 
-- [ ] **10. WhatsApp Desktop QR login drops prefilled text**
-  **Fix:** Add copy-to-clipboard fallback for desktop users.
+- [x] **10. WhatsApp Desktop QR login drops prefilled text**
+  Confirm step includes "Copy order text" button as clipboard fallback.
 
-- [ ] **11. No order idempotency**
-  Duplicate submission produces duplicate orders.
-  **Fix:** Embed timestamp + short hash as pseudo order-ID in commission message.
+- [x] **11. No order idempotency**
+  Commission messages now include a pseudo order-ID (`Ref: LF-MMDD-XXXX`) based on
+  timestamp hash. Studio uses Ref for deduplication.
 
-- [ ] **12. Zero operational tooling**
-  **Fix:** Document Google Sheets schema, SKU transcription rules, handoff protocol.
+- [x] **12. Zero operational tooling**
+  Added `docs/order-operations.md`: Google Sheets schema, status values, daily workflow,
+  duplicate handling, SKU transcription rules, handoff protocol, scaling triggers.
 
 ---
 
-P0 items form a compound kill chain: large cart + popup blocked + premature clear = **complete irrecoverable order loss**. Fix all three before taking real orders.
+All 12 items addressed. The compound kill chain (large cart + popup blocked + premature clear)
+is fully broken: confirmation gate prevents premature clear, anchor click prevents popup blocking,
+and URL length guard prevents truncation.
