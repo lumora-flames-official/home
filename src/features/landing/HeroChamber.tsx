@@ -555,7 +555,7 @@ export const HeroChamber: React.FC<HeroChamberProps> = ({ onScrollCue }) => {
         className={cn(
           'hero-fade relative z-10 flex flex-col items-center text-center',
           DESIGN_TOKENS.layout.contained,
-          'max-w-4xl gap-7 pb-40 pt-28 sm:gap-9 sm:pb-48 sm:pt-32'
+          'max-w-4xl gap-7 pb-[max(10rem,32svh)] pt-28 sm:gap-9 sm:pb-[max(12rem,36svh)] sm:pt-32'
         )}
       >
         <span className="hero-eyebrow inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700 backdrop-blur-md dark:text-amber-300">

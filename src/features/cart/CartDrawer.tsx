@@ -1,11 +1,30 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Minus, Plus, Send, ShoppingBag, Trash2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  Copy,
+  ExternalLink,
+  Minus,
+  Plus,
+  RotateCcw,
+  Send,
+  ShoppingBag,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 import { useCart } from './CartContext';
-import { cartWhatsAppLink, type DeliveryAddress } from '../../lib/cartWhatsApp';
+import {
+  buildCartCommissionMessage,
+  cartWhatsAppLink,
+  isCartUrlTooLong,
+  type DeliveryAddress,
+} from '../../lib/cartWhatsApp';
 import { formatPrice } from '../../lib/formatPrice';
 import { cn } from '../../lib/utils';
 import { DESIGN_TOKENS } from '../../theme/designSystem';
+import { isInAppBrowser } from '../../lib/webview';
 
 // ─── Cart item row ────────────────────────────────────────────────────────────
 
@@ -72,34 +91,58 @@ const CartItemRow: React.FC<CartItemRowProps> = ({ item, onRemove, onUpdateQty }
 
 // ─── Address step ─────────────────────────────────────────────────────────────
 
+const EMPTY_ADDRESS: DeliveryAddress = {
+  name: '',
+  phone: '',
+  addressLine: '',
+  locality: '',
+  city: '',
+  pincode: '',
+};
+
 interface AddressStepProps {
   items: CartItem[];
   totalPrice: number;
+  address: DeliveryAddress;
+  onAddressChange: (address: DeliveryAddress) => void;
   onBack: () => void;
   onClose: () => void;
-  onSent: () => void;
+  onOpenedWhatsApp: (link: string, message: string) => void;
 }
 
 const AddressStep: React.FC<AddressStepProps> = ({
   items,
   totalPrice,
+  address,
+  onAddressChange,
   onBack,
   onClose,
-  onSent,
+  onOpenedWhatsApp,
 }) => {
+  const whatsappAnchorRef = useRef<HTMLAnchorElement>(null);
+  const [urlWarning, setUrlWarning] = useState(false);
+
+  const setField = (field: keyof DeliveryAddress, value: string) =>
+    onAddressChange({ ...address, [field]: value });
+
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const address: DeliveryAddress = {
-      name: data.get('name') as string,
-      phone: data.get('phone') as string,
-      addressLine: data.get('addressLine') as string,
-      locality: data.get('locality') as string,
-      city: data.get('city') as string,
-      pincode: data.get('pincode') as string,
-    };
-    window.open(cartWhatsAppLink(items, address), '_blank', 'noreferrer');
-    onSent();
+
+    if (isCartUrlTooLong(items, address)) {
+      setUrlWarning(true);
+      return;
+    }
+
+    const link = cartWhatsAppLink(items, address);
+    const message = buildCartCommissionMessage(items, address);
+
+    const anchor = whatsappAnchorRef.current;
+    if (anchor) {
+      anchor.href = link;
+      anchor.click();
+    }
+
+    onOpenedWhatsApp(link, message);
   };
 
   const inputClass =
@@ -151,6 +194,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               required
               autoComplete="name"
               placeholder="Your name"
+              value={address.name}
+              onChange={(e) => setField('name', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -167,6 +212,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               autoComplete="tel"
               pattern="[0-9+\s\-]{8,15}"
               placeholder="10-digit mobile number"
+              value={address.phone}
+              onChange={(e) => setField('phone', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -182,6 +229,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               required
               autoComplete="street-address"
               placeholder="Flat / House no., Building, Street"
+              value={address.addressLine}
+              onChange={(e) => setField('addressLine', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -196,6 +245,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
               type="text"
               required
               placeholder="Area, Colony"
+              value={address.locality}
+              onChange={(e) => setField('locality', e.target.value)}
               className={inputClass}
             />
           </div>
@@ -212,6 +263,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
                 required
                 autoComplete="address-level2"
                 placeholder="New Delhi"
+                value={address.city}
+                onChange={(e) => setField('city', e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -226,6 +279,8 @@ const AddressStep: React.FC<AddressStepProps> = ({
                 required
                 pattern="[0-9]{6}"
                 placeholder="110001"
+                value={address.pincode}
+                onChange={(e) => setField('pincode', e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -236,7 +291,16 @@ const AddressStep: React.FC<AddressStepProps> = ({
           </p>
         </div>
 
-        <div className="border-t border-stone-200/70 p-4 dark:border-stone-800/70">
+        <div className="space-y-2 border-t border-stone-200/70 p-4 dark:border-stone-800/70">
+          {urlWarning && (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+            >
+              Your order has too many items for a single WhatsApp message. Remove some items and
+              place a second order for the rest.
+            </div>
+          )}
           <button
             type="submit"
             className={cn(
@@ -250,6 +314,176 @@ const AddressStep: React.FC<AddressStepProps> = ({
           </button>
         </div>
       </form>
+
+      {/* Hidden anchor for popup-blocker-immune navigation. */}
+      <a
+        ref={whatsappAnchorRef}
+        target="_blank"
+        rel="noreferrer"
+        className="hidden"
+        aria-hidden="true"
+      />
+    </div>
+  );
+};
+
+// ─── Confirm step ────────────────────────────────────────────────────────────
+
+interface ConfirmStepProps {
+  whatsappLink: string;
+  messageText: string;
+  onConfirmed: () => void;
+  onRetry: () => void;
+  onClose: () => void;
+}
+
+const ConfirmStep: React.FC<ConfirmStepProps> = ({
+  whatsappLink,
+  messageText,
+  onConfirmed,
+  onRetry,
+  onClose,
+}) => {
+  const [copied, setCopied] = useState(false);
+  const [showDraftWarning, setShowDraftWarning] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(messageText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* Clipboard API unavailable in some WebViews — silent fail. */
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b border-stone-200/70 p-4 dark:border-stone-800/70">
+        <Send className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-light tracking-tight">Confirm your order</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close cart"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:border-amber-500 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-stone-700 dark:text-stone-400"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 p-6 text-center">
+        <div className="grid h-16 w-16 place-items-center rounded-full bg-amber-100 dark:bg-amber-500/10">
+          <Send className="h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-base font-light">Did WhatsApp open with your order?</p>
+          <p className="text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+            Your cart is safe until you confirm. If WhatsApp didn't open, use the link below or copy
+            the message to send it manually.
+          </p>
+        </div>
+
+        <div className="flex w-full flex-col gap-2">
+          <button
+            type="button"
+            onClick={onConfirmed}
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-6 py-3.5 text-stone-950 transition-colors hover:bg-amber-400',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            Yes, I sent it
+          </button>
+
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full border border-stone-300 px-6 py-3 text-stone-900 transition-colors',
+              'hover:border-amber-500 hover:text-amber-600',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50',
+              'dark:border-stone-700 dark:text-stone-100 dark:hover:border-amber-500 dark:hover:text-amber-400 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            Re-open WhatsApp
+          </a>
+
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full border border-stone-300 px-6 py-3 text-stone-900 transition-colors',
+              'hover:border-amber-500 hover:text-amber-600',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50',
+              'dark:border-stone-700 dark:text-stone-100 dark:hover:border-amber-500 dark:hover:text-amber-400 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                Copy order text
+              </>
+            )}
+          </button>
+        </div>
+
+        {showDraftWarning ? (
+          <div
+            role="alert"
+            className="w-full space-y-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4 dark:border-amber-700/50 dark:bg-amber-950/30"
+          >
+            <div className="flex items-start gap-2">
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                aria-hidden="true"
+              />
+              <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                WhatsApp keeps the previous message as a draft. Before resending, open WhatsApp and
+                clear the old text from the compose box — otherwise your updated order will not
+                replace it. You can also use "Copy order text" above and paste it yourself.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowDraftWarning(false);
+                onRetry();
+              }}
+              className={cn(
+                'inline-flex w-full items-center justify-center gap-2 rounded-full border border-amber-400 bg-amber-500/10 px-4 py-2.5 text-amber-800 transition-colors',
+                'hover:bg-amber-500/20',
+                'dark:border-amber-600/50 dark:text-amber-300 dark:hover:bg-amber-500/20',
+                DESIGN_TOKENS.typography.button
+              )}
+            >
+              OK, take me back to edit
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowDraftWarning(true)}
+            className="text-xs text-stone-400 underline underline-offset-2 transition-colors hover:text-stone-600 dark:hover:text-stone-300"
+          >
+            Go back and edit
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -274,74 +508,94 @@ const CartStep: React.FC<CartStepProps> = ({
   onUpdateQty,
   onClose,
   onCommission,
-}) => (
-  <div className="flex h-full flex-col">
-    <div className="flex items-center gap-3 border-b border-stone-200/70 p-4 dark:border-stone-800/70">
-      <ShoppingBag className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <h2 className="text-base font-light tracking-tight">Your Cart</h2>
-        {totalCount > 0 && (
-          <p className="tabular-nums text-xs text-stone-500 dark:text-stone-400">
-            {totalCount} {totalCount === 1 ? 'item' : 'items'} · {formatPrice(totalPrice)}
-          </p>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close cart"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:border-amber-500 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-stone-700 dark:text-stone-400"
-      >
-        <X className="h-4 w-4" aria-hidden="true" />
-      </button>
-    </div>
+}) => {
+  const inAppWarning = useMemo(() => isInAppBrowser() && items.length > 0, [items.length]);
 
-    <div className="flex-1 overflow-y-auto overscroll-contain">
-      {items.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-          <ShoppingBag
-            className="h-10 w-10 text-stone-300 dark:text-stone-700"
-            aria-hidden="true"
-          />
-          <p className="text-sm font-light text-stone-500 dark:text-stone-400">
-            Cart is empty. Add candles from the catalog.
-          </p>
-        </div>
-      ) : (
-        <ul className="px-4">
-          {items.map((item) => (
-            <CartItemRow
-              key={item.product.sku}
-              item={item}
-              onRemove={onRemove}
-              onUpdateQty={onUpdateQty}
-            />
-          ))}
-        </ul>
-      )}
-    </div>
-
-    {items.length > 0 && (
-      <div className="space-y-3 border-t border-stone-200/70 p-4 dark:border-stone-800/70">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-stone-500 dark:text-stone-400">Total</span>
-          <span className="text-lg font-light tabular-nums">{formatPrice(totalPrice)}</span>
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b border-stone-200/70 p-4 dark:border-stone-800/70">
+        <ShoppingBag className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-light tracking-tight">Your Cart</h2>
+          {totalCount > 0 && (
+            <p className="tabular-nums text-xs text-stone-500 dark:text-stone-400">
+              {totalCount} {totalCount === 1 ? 'item' : 'items'} · {formatPrice(totalPrice)}
+            </p>
+          )}
         </div>
         <button
           type="button"
-          onClick={onCommission}
-          className={cn(
-            'inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-6 py-3.5 text-stone-950 transition-colors hover:bg-amber-400',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
-            DESIGN_TOKENS.typography.button
-          )}
+          onClick={onClose}
+          aria-label="Close cart"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:border-amber-500 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-stone-700 dark:text-stone-400"
         >
-          Commission these candles
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-    )}
-  </div>
-);
+
+      {inAppWarning && (
+        <div
+          role="status"
+          className="flex items-start gap-2 border-b border-amber-200/70 bg-amber-50 px-4 py-3 dark:border-amber-900/30 dark:bg-amber-950/20"
+        >
+          <ExternalLink
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+            aria-hidden="true"
+          />
+          <p className="text-[0.7rem] leading-relaxed text-amber-800 dark:text-amber-300">
+            You're browsing inside an app. Open this site in your browser to keep your cart when you
+            switch to WhatsApp.
+          </p>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        {items.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+            <ShoppingBag
+              className="h-10 w-10 text-stone-300 dark:text-stone-700"
+              aria-hidden="true"
+            />
+            <p className="text-sm font-light text-stone-500 dark:text-stone-400">
+              Cart is empty. Add candles from the catalog.
+            </p>
+          </div>
+        ) : (
+          <ul className="px-4">
+            {items.map((item) => (
+              <CartItemRow
+                key={item.product.sku}
+                item={item}
+                onRemove={onRemove}
+                onUpdateQty={onUpdateQty}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {items.length > 0 && (
+        <div className="space-y-3 border-t border-stone-200/70 p-4 dark:border-stone-800/70">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-stone-500 dark:text-stone-400">Total</span>
+            <span className="text-lg font-light tabular-nums">{formatPrice(totalPrice)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onCommission}
+            className={cn(
+              'inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-6 py-3.5 text-stone-950 transition-colors hover:bg-amber-400',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950',
+              DESIGN_TOKENS.typography.button
+            )}
+          >
+            Commission these candles
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── CartDrawer ───────────────────────────────────────────────────────────────
 
@@ -349,9 +603,12 @@ const CartStep: React.FC<CartStepProps> = ({
  * Right-side drawer for the shopping cart.
  *
  * Rendered once at the app level (App.tsx) and driven entirely by
- * {@link useCart}'s `isOpen` / `open` / `close`. Two internal steps:
+ * {@link useCart}'s `isOpen` / `open` / `close`. Three internal steps:
  * 1. Cart items with quantity controls.
  * 2. Delivery address form that builds and opens the WhatsApp commission link.
+ * 3. Confirmation gate — cart is only cleared after the user confirms
+ *    WhatsApp received the message, preventing data loss when popup
+ *    blockers or WebView restrictions silently eat `window.open`.
  *
  * Uses the native `<dialog>` element with `showModal()` for the same reasons as
  * `ProductDialog`: free backdrop, top-layer stacking, Escape to dismiss, and
@@ -360,12 +617,15 @@ const CartStep: React.FC<CartStepProps> = ({
 export const CartDrawer: React.FC = () => {
   const { items, removeItem, updateQty, totalPrice, totalCount, isOpen, close, clear } = useCart();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [step, setStep] = useState<'cart' | 'address'>('cart');
+  const [step, setStep] = useState<'cart' | 'address' | 'confirm'>('cart');
+  const [pendingLink, setPendingLink] = useState('');
+  const [pendingMessage, setPendingMessage] = useState('');
+  const [address, setAddress] = useState<DeliveryAddress>(EMPTY_ADDRESS);
 
-  // Resets step to 'cart' and closes. Called by every dismissal path so the
-  // next open always starts on the items list, not the address form.
   const handleClose = () => {
-    setStep('cart');
+    if (step !== 'confirm') {
+      setStep('cart');
+    }
     close();
   };
 
@@ -404,15 +664,31 @@ export const CartDrawer: React.FC = () => {
         'bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100'
       )}
     >
-      {step === 'address' ? (
+      {step === 'confirm' ? (
+        <ConfirmStep
+          whatsappLink={pendingLink}
+          messageText={pendingMessage}
+          onConfirmed={() => {
+            clear();
+            setAddress(EMPTY_ADDRESS);
+            setStep('cart');
+            close();
+          }}
+          onRetry={() => setStep('address')}
+          onClose={handleClose}
+        />
+      ) : step === 'address' ? (
         <AddressStep
           items={items}
           totalPrice={totalPrice}
+          address={address}
+          onAddressChange={setAddress}
           onBack={() => setStep('cart')}
           onClose={handleClose}
-          onSent={() => {
-            clear();
-            handleClose();
+          onOpenedWhatsApp={(link, message) => {
+            setPendingLink(link);
+            setPendingMessage(message);
+            setStep('confirm');
           }}
         />
       ) : (
