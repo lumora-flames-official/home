@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   Copy,
@@ -344,6 +345,7 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [showDraftWarning, setShowDraftWarning] = useState(false);
 
   const handleCopy = async () => {
     try {
@@ -440,18 +442,47 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
           </button>
         </div>
 
-        <p className="px-2 text-[0.65rem] leading-relaxed text-stone-400 dark:text-stone-500">
-          If you need to resend with changes, clear the draft in WhatsApp first — WhatsApp keeps the
-          previous message in the compose box. Or copy the updated text above and paste it yourself.
-        </p>
-
-        <button
-          type="button"
-          onClick={onRetry}
-          className="text-xs text-stone-400 underline underline-offset-2 transition-colors hover:text-stone-600 dark:hover:text-stone-300"
-        >
-          Go back and edit
-        </button>
+        {showDraftWarning ? (
+          <div
+            role="alert"
+            className="w-full space-y-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4 dark:border-amber-700/50 dark:bg-amber-950/30"
+          >
+            <div className="flex items-start gap-2">
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                aria-hidden="true"
+              />
+              <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                WhatsApp keeps the previous message as a draft. Before resending, open WhatsApp and
+                clear the old text from the compose box — otherwise your updated order will not
+                replace it. You can also use "Copy order text" above and paste it yourself.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowDraftWarning(false);
+                onRetry();
+              }}
+              className={cn(
+                'inline-flex w-full items-center justify-center gap-2 rounded-full border border-amber-400 bg-amber-500/10 px-4 py-2.5 text-amber-800 transition-colors',
+                'hover:bg-amber-500/20',
+                'dark:border-amber-600/50 dark:text-amber-300 dark:hover:bg-amber-500/20',
+                DESIGN_TOKENS.typography.button
+              )}
+            >
+              OK, take me back to edit
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowDraftWarning(true)}
+            className="text-xs text-stone-400 underline underline-offset-2 transition-colors hover:text-stone-600 dark:hover:text-stone-300"
+          >
+            Go back and edit
+          </button>
+        )}
       </div>
     </div>
   );
