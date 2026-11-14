@@ -104,6 +104,26 @@ export const countCollectionProducts = (categoryId: string): number =>
 export const hasVarietyProducts = (categoryId: string, varietyId: string): boolean =>
   (CATALOG[categoryId]?.[varietyId]?.length ?? 0) > 0;
 
+/**
+ * SKU-indexed lookup built once on import. Every product in the catalog is
+ * reachable by its code without knowing which collection or variety it sits
+ * in — used by cart hydration to restore line items from localStorage.
+ */
+const SKU_INDEX: Map<string, CatalogProduct> = (() => {
+  const index = new Map<string, CatalogProduct>();
+  for (const [categoryId, varieties] of Object.entries(CATALOG)) {
+    for (const [varietyId, products] of Object.entries(varieties)) {
+      for (const stored of products) {
+        index.set(stored.sku, hydrate(stored, categoryId, varietyId));
+      }
+    }
+  }
+  return index;
+})();
+
+/** Returns a hydrated product by its SKU, or `undefined` if delisted. */
+export const getProductBySku = (sku: string): CatalogProduct | undefined => SKU_INDEX.get(sku);
+
 /** One variety's products, with the display titles the catalog page needs. */
 export interface CatalogGroup {
   categoryId: string;

@@ -1,6 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { CatalogProduct } from '../../types/catalog';
-import type { CartItem } from '../../types/cart';
+import type { CartItem, PersistedCartItem } from '../../types/cart';
+import { getProductBySku } from '../../data/catalog';
 
 interface CartContextValue {
   items: CartItem[];
@@ -38,13 +39,50 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 const STORAGE_KEY = 'lumora-cart';
 
+/**
+ * Reads the slim persisted records from localStorage, then hydrates each one
+ * against the current catalog. Products that no longer exist (delisted, SKU
+ * removed) are silently dropped — they would render as blank rows and break
+ * the WhatsApp message.
+ */
 function readStorage(): CartItem[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as CartItem[]) : [];
+    if (!raw) return [];
+
+    const persisted = JSON.parse(raw) as PersistedCartItem[];
+    const hydrated: CartItem[] = [];
+
+    for (const entry of persisted) {
+      // Legacy format stored the full product object. Detect and migrate.
+      const sku = entry.sku ?? (entry as unknown as { product?: { sku?: string } }).product?.sku;
+      if (!sku) continue;
+
+      const product = getProductBySku(sku);
+      if (!product) continue;
+
+      hydrated.push({
+        product,
+        quantity: Math.min(Math.max(entry.quantity ?? 1, 1), 99),
+        categoryTitle: entry.categoryTitle ?? '',
+        varietyName: entry.varietyName ?? '',
+      });
+    }
+
+    return hydrated;
   } catch {
     return [];
   }
+}
+
+/** Strips hydrated items down to the slim shape that belongs in localStorage. */
+function toPersistedItems(items: CartItem[]): PersistedCartItem[] {
+  return items.map((i) => ({
+    sku: i.product.sku,
+    quantity: i.quantity,
+    categoryTitle: i.categoryTitle,
+    varietyName: i.varietyName,
+  }));
 }
 
 /** Provides cart state and the open/close toggle for {@link CartDrawer}. */
@@ -53,8 +91,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersistedItems(items)));
   }, [items]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) setItems(readStorage());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const addItem = useCallback(
     (
@@ -98,24 +144,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const totalCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce((sum, i) => sum + i.product.priceInr * i.quantity, 0);
 
-  return (
-    <CartContext.Provider
-      value={{
-        items,
-        addItem,
-        removeItem,
-        updateQty,
-        clear,
-        totalCount,
-        totalPrice,
-        isOpen,
-        open,
-        close,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  const value = useMemo(
+    () => ({
+      items,
+      addItem,
+      removeItem,
+      updateQty,
+      clear,
+      totalCount,
+      totalPrice,
+      isOpen,
+      open,
+      close,
+    }),
+    [items, addItem, removeItem, updateQty, clear, totalCount, totalPrice, isOpen, open, close]
   );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
 /** Returns the cart context. Must be called within {@link CartProvider}. */

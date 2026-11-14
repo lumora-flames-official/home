@@ -36,6 +36,7 @@
  *     git show <rev>:src/data/images/collections-landing/bespoke.png > bespoke.png
  */
 
+import { existsSync } from 'node:fs';
 import { readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
@@ -104,65 +105,83 @@ const rewriteAssets = async (renames) => {
   await writeFile(ASSETS_FILE, source, 'utf8');
 };
 
+/** Resolve OG source — may be a webp placed directly, not a converted PNG/JPG. */
+const resolveOgSource = (convertedFiles) => {
+  const ogBase = path.join(IMAGES_ROOT, OG.source);
+  const fromConverted = convertedFiles.find((f) => f.includes(OG.source));
+  if (fromConverted) return `${fromConverted.slice(0, -path.extname(fromConverted).length)}.webp`;
+  for (const ext of ['.webp', '.png', '.jpg', '.jpeg']) {
+    const candidate = ogBase + ext;
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+};
+
 const main = async () => {
   const files = await collect(IMAGES_ROOT);
-  if (files.length === 0) {
-    console.log('Nothing to convert — no PNG or JPEG under src/data/images/.');
-    return;
+
+  if (files.length > 0) {
+    console.log(`${write ? 'Converting' : 'Dry run —'} ${files.length} file(s) at q${QUALITY}\n`);
+
+    const renames = [];
+    let before = 0;
+    let after = 0;
+
+    for (const file of files) {
+      const original = (await stat(file)).size;
+      const target = `${file.slice(0, -path.extname(file).length)}.webp`;
+
+      const buffer = await sharp(file).webp({ quality: QUALITY }).toBuffer();
+      before += original;
+      after += buffer.length;
+
+      const relative = path.relative(ROOT, file);
+      const ratio = (original / buffer.length).toFixed(0);
+      console.log(`  ${relative}\n    ${mb(original)} → ${kb(buffer.length)}  (${ratio}×)`);
+
+      if (!write) continue;
+
+      await writeFile(target, buffer);
+      await unlink(file);
+      renames.push([path.basename(file), path.basename(target)]);
+    }
+
+    console.log(
+      `\nTotal: ${mb(before)} → ${mb(after)}  (${(before / after).toFixed(1)}× smaller, saves ${mb(before - after)})`
+    );
+
+    if (!write) {
+      console.log('\nNothing written. Re-run with --write to apply.');
+      return;
+    }
+
+    await rewriteAssets(renames);
+    console.log(`\nRewrote ${renames.length} import path(s) in src/data/assets.ts`);
+  } else {
+    console.log('No PNG or JPEG to convert under src/data/images/.');
+    if (!write) return;
   }
-
-  console.log(`${write ? 'Converting' : 'Dry run —'} ${files.length} file(s) at q${QUALITY}\n`);
-
-  const renames = [];
-  let before = 0;
-  let after = 0;
-
-  for (const file of files) {
-    const original = (await stat(file)).size;
-    const target = `${file.slice(0, -path.extname(file).length)}.webp`;
-
-    const buffer = await sharp(file).webp({ quality: QUALITY }).toBuffer();
-    before += original;
-    after += buffer.length;
-
-    const relative = path.relative(ROOT, file);
-    const ratio = (original / buffer.length).toFixed(0);
-    console.log(`  ${relative}\n    ${mb(original)} → ${kb(buffer.length)}  (${ratio}×)`);
-
-    if (!write) continue;
-
-    await writeFile(target, buffer);
-    // Only after the .webp is on disk, for the same reason the catalog API writes the new
-    // file before touching JSON: an interruption must never leave an import with no file.
-    await unlink(file);
-    renames.push([path.basename(file), path.basename(target)]);
-  }
-
-  console.log(
-    `\nTotal: ${mb(before)} → ${mb(after)}  (${(before / after).toFixed(1)}× smaller, saves ${mb(before - after)})`
-  );
-
-  if (!write) {
-    console.log('\nNothing written. Re-run with --write to apply.');
-    return;
-  }
-
-  await rewriteAssets(renames);
-  console.log(`\nRewrote ${renames.length} import path(s) in src/data/assets.ts`);
 
   /*
-   * The Open Graph card. Generated here rather than committed by hand so it is always
-   * derived from real brand photography, and regenerating it is one command.
+   * The Open Graph card. Generated regardless of whether any PNG/JPGs were converted,
+   * because the source may already be a .webp placed directly into the images directory.
    */
-  const ogSource = files.find((file) => file.includes(OG.source)) ?? files[0];
+  const ogSource = resolveOgSource(files);
   const ogTarget = path.join(PUBLIC_DIR, 'og.jpg');
 
-  await sharp(`${ogSource.slice(0, -path.extname(ogSource).length)}.webp`)
-    .resize(OG.width, OG.height, { fit: 'cover', position: 'centre' })
-    .jpeg({ quality: OG.quality, mozjpeg: true })
-    .toFile(ogTarget);
+  if (!ogSource) {
+    console.log(`\nSkipped og.jpg — no source matching "${OG.source}" found.`);
+  } else {
+    await sharp(ogSource)
+      .resize(OG.width, OG.height, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: OG.quality, mozjpeg: true })
+      .toFile(ogTarget);
 
-  console.log(`Wrote public/og.jpg (${OG.width}×${OG.height}, ${kb((await stat(ogTarget)).size)})`);
+    console.log(
+      `Wrote public/og.jpg (${OG.width}×${OG.height}, ${kb((await stat(ogTarget)).size)})`
+    );
+  }
+
   console.log('\nNext: npm run lint && npm run format:check && npm run test && npm run build');
 };
 
