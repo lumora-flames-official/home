@@ -298,7 +298,7 @@ export const Navbar: React.FC = () => {
           ref={backdropRef}
           onClick={() => closeMenu(true)}
           aria-hidden="true"
-          className="md:hidden pointer-events-auto fixed inset-0 bg-stone-950/40 backdrop-blur-sm"
+          className="md:hidden pointer-events-auto fixed inset-0 backdrop-blur-sm"
         />
       )}
 
